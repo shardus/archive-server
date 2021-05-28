@@ -58,7 +58,7 @@ export function isEmpty(): boolean {
 export function addNodes(
   status: Statuses,
   cycleMarkerJoined: string,
-  nodes: ConsensusNodeInfo[] | Data.JoinedConsensor[]
+  nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ) {
   Logger.mainLogger.debug('Typeof Nodes to add', typeof nodes)
   Logger.mainLogger.debug('Length of Nodes to add', nodes.length)
@@ -214,3 +214,24 @@ export function getId(publicKey: string) {
 export function getNodeInfoById(id: string) {
   return byId[id]
 }
+
+export enum NodeStatus {
+  ACTIVE = 'active',
+  SYNCING = 'syncing',
+  REMOVED = 'removed',
+}
+export interface JoinedConsensor extends ConsensusNodeInfo {
+  cycleJoined: string
+  counterRefreshed: number
+  id: string
+}
+
+export interface Node extends JoinedConsensor {
+  curvePublicKey: string
+  status: NodeStatus
+}
+
+type OptionalExceptFor<T, TRequired extends keyof T> = Partial<T> &
+  Pick<T, TRequired>
+
+export type Update = OptionalExceptFor<Node, 'id'>
