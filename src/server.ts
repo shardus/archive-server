@@ -13,6 +13,7 @@ import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
 import * as Logger from './Logger'
+import { TypeNames, StateMetaData } from './Data/StateParser'
 
 
 // Socket modules
@@ -107,7 +108,7 @@ async function syncAndStartServer() {
   let randomConsensor = NodeList.getRandomActiveNode()
   Data.addDataSenders({
     nodeInfo: randomConsensor,
-    types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+    types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
   })
 
   // wait for one cycle before sending data request
@@ -116,19 +117,19 @@ async function syncAndStartServer() {
   // After we've joined, select a consensus node as a dataSender
   const dataRequest = Crypto.sign({
     dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-      Data.TypeNames.CYCLE,
+      TypeNames.CYCLE,
       Cycles.getCurrentCycleCounter(),
       randomConsensor.publicKey
     ),
-    dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
-      Data.TypeNames.STATE_METADATA,
+    dataRequestStateMetaData: Data.createDataRequest<StateMetaData>(
+      TypeNames.STATE_METADATA,
       Cycles.lastProcessedMetaData,
       randomConsensor.publicKey
     ),
   })
   const newSender: Data.DataSender = {
     nodeInfo: randomConsensor,
-    types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+    types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
     contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
     replaceTimeout: Data.createReplaceTimeout(randomConsensor.publicKey),
   }
@@ -202,7 +203,7 @@ function startServer() {
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+        types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
         replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
       })
 
@@ -210,12 +211,12 @@ function startServer() {
         nodeList: NodeList.getList(),
         joinRequest: P2P.createArchiverJoinRequest(),
         dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-          Data.TypeNames.CYCLE,
+          TypeNames.CYCLE,
           Cycles.currentCycleCounter,
           publicKey
         ),
-        dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
-          Data.TypeNames.STATE_METADATA,
+        dataRequestStateMetaData: Data.createDataRequest<StateMetaData>(
+          TypeNames.STATE_METADATA,
           Cycles.lastProcessedMetaData,
           publicKey
         ),

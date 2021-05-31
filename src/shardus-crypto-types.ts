@@ -3,7 +3,7 @@ export type publicKey = hexstring
 export type secretKey = hexstring
 export type curvePublicKey = hexstring
 export type curveSecretKey = hexstring
-export type sharedKey = hexstring
+export type sharedKey = Buffer
 
 export interface Keypair {
   publicKey: publicKey

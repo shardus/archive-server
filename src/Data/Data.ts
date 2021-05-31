@@ -22,50 +22,14 @@ import {
   lastProcessedMetaData,
   validateCycle
 } from './Cycles'
-import { StateHashes } from './State'
-import { ReceiptHashes } from './Receipt'
-import { SummaryHashes } from './Summary'
 import { BaseModel } from 'tydb'
 import * as Logger from '../Logger'
+import { ValidTypes, TypeName, DataRequest, TypeNames, TypeIndex, SummaryBlob, ReceiptMapResult, StateMetaData ,StatsClump } from './StateParser'
 
 // Socket modules
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic["Socket"]
-export interface StateMetaData {
-  counter: Cycle['counter']
-  stateHashes: StateHashes[],
-  receiptHashes: ReceiptHashes[],
-  summaryHashes: SummaryHashes[]
-}
-// Data types
-
-export type ValidTypes = Cycle | StateMetaData
-
-export enum TypeNames {
-  CYCLE = 'CYCLE',
-  STATE_METADATA = 'STATE_METADATA'
-}
-
-interface NamesToTypes {
-  CYCLE: Cycle
-  STATE_METADATA: StateMetaData
-}
-
-export type TypeName<T extends ValidTypes> = T extends Cycle
-  ? TypeNames.CYCLE
-  : TypeNames.STATE_METADATA
-
-export type TypeIndex<T extends ValidTypes> = T extends Cycle
-  ? Cycle['counter']
-  : StateMetaData['counter']
-
-// Data network messages
-
-export interface DataRequest<T extends ValidTypes> {
-  type: TypeName<T>
-  lastData: TypeIndex<T>
-}
 
 interface DataResponse<T extends ValidTypes> {
   type: TypeName<T>
@@ -76,40 +40,10 @@ interface DataKeepAlive {
   keepAlive: boolean
 }
 
-export type ReceiptMap = {[txId:string] : string[]  }
-
-export type ReceiptMapResult = {
-  cycle:number;
-  partition:number;
-  receiptMap:ReceiptMap;
-  txCount:number
-}
-
-type OpaqueBlob = any
-
-export type SummaryBlob = {
-  latestCycle: number; //The highest cycle that was used in this summary.  
-  counter:number; 
-  errorNull:number; 
-  partition:number; 
-  opaqueBlob:OpaqueBlob;
-}
-
 //A collection of blobs that share the same cycle.  For TX summaries
 type SummaryBlobCollection = {
   cycle:number; 
   blobsByPartition:Map<number, SummaryBlob>;
-}
-
-// Stats collected for a cycle
-export type StatsClump = {
-  error:boolean; 
-  cycle:number; 
-  dataStats:SummaryBlob[]; 
-  txStats:SummaryBlob[]; 
-  covered:number[];
-  coveredParititionCount:number;
-  skippedParitionCount:number; 
 }
 
 export interface ReceiptMapQueryResponse {
@@ -123,36 +57,6 @@ export interface SummaryBlobQueryResponse {
 export interface DataQueryResponse {
   success: boolean
   data: any
-}
-type CycleMarker = string
-
-type StateData = {
-  parentCycle?: CycleMarker
-  networkHash?: string
-  partitionHashes?: string[]
-}
-
-type Receipt = {
-  parentCycle?: CycleMarker
-  networkHash?: string
-  partitionHashes?: string[]
-  partitionMaps?: { [partition: number]: ReceiptMapResult }
-  partitionTxs?: { [partition: number]: any }
-}
-
-type Summary = {
-  parentCycle?: CycleMarker
-  networkHash?: string
-  partitionHashes?: string[]
-  partitionBlobs?: { [partition: number]: SummaryBlob }
-}
-
-export class ArchivedCycle extends BaseModel {
-  cycleRecord!: Cycle
-  cycleMarker!: CycleMarker
-  data!: StateData
-  receipt!: Receipt
-  summary!: Summary
 }
 
 export let StateMetaDataMap = new Map()

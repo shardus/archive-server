@@ -5,8 +5,7 @@ import * as NodeList from './NodeList'
 import 'node-fetch'
 import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
-import { StateHashes } from './Data/State'
-import { ReceiptHashes } from './Data/Receipt'
+import { StateHashes, ReceiptHashes, DataRequest, StateMetaData } from './Data/StateParser'
 
 export enum RequestTypes {
   JOIN = 'JOIN',
@@ -30,8 +29,8 @@ export interface FirstNodeInfo {
 export interface FirstNodeResponse {
   nodeList: NodeList.ConsensusNodeInfo[]
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
-  dataRequestCycle?: Data.DataRequest<Cycle> & Crypto.TaggedMessage
-  dataRequestStateMetaData?: Data.DataRequest<Data.StateMetaData> & Crypto.TaggedMessage
+  dataRequestCycle?: DataRequest<Cycle> & Crypto.TaggedMessage
+  dataRequestStateMetaData?: DataRequest<StateMetaData> & Crypto.TaggedMessage
 }
 
 export function createArchiverJoinRequest() {

@@ -2,10 +2,11 @@ import { Cycle, CycleChain } from './Data/Cycles'
 import { Config } from './Config'
 import * as Data from './Data/Data'
 import knex = require('knex')
-import { DataQueryResponse, ReceiptMapResult, socketServer, SummaryBlob } from './Data/Data'
+import { socketServer } from './Data/Data'
 import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
 import * as Crypto from './Crypto'
 import * as Logger from './Logger'
+import { ArchivedCycle, ReceiptMapResult, SummaryBlob  } from './Data/StateParser'
 
 export let Collection: any
 
@@ -13,9 +14,9 @@ export async function initStorage (config: Config) {
   // Get db file location from config
   let dbFile = config.ARCHIVER_DB
 
-  Collection = new Database<Data.ArchivedCycle>({
+  Collection = new Database<ArchivedCycle>({
     ref: dbFile,
-    model: Data.ArchivedCycle,
+    model: ArchivedCycle,
     persistence_adapter: FS_Persistence_Adapter,
     autoCompaction: 10 * 30 * 1000, // database compaction every 10 cycles
   })
@@ -25,7 +26,7 @@ export async function initStorage (config: Config) {
 export async function insertArchivedCycle(archivedCycle: any) {
   Logger.mainLogger.debug('Inserting archived cycle', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
   try {
-    await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
+    await Collection.insert([ArchivedCycle.new(archivedCycle)])
     Logger.mainLogger.debug('Successfully inserted archivedCycle', archivedCycle.cycleRecord.counter)
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: archivedCycle.cycleMarker },
@@ -43,7 +44,7 @@ export async function insertArchivedCycle(archivedCycle: any) {
 }
 
 export async function updateReceiptMap (
-  receiptMapResult: Data.ReceiptMapResult
+  receiptMapResult: ReceiptMapResult
 ) {
   if (!receiptMapResult) return
   try {
