@@ -43,7 +43,7 @@ async function start() {
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)
   // Initialize storage
-  await Storage.initStorage(config)
+  await Storage.initStorage()
 
   // Initialize state from config
   await State.initFromConfig(config)
