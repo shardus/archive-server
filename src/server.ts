@@ -14,6 +14,7 @@ import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
 import * as Logger from './Logger'
 import { TypeNames, StateMetaData } from './Data/StateParser'
+import { NodeStatus } from './CycleParser'
 
 
 // Socket modules
@@ -199,7 +200,7 @@ function startServer() {
       Data.initSocketClient(firstNode)
 
       // Add first node to NodeList
-      NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
+      NodeList.addNodes(NodeStatus.SYNCING, 'bogus', [firstNode])
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,

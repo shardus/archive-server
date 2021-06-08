@@ -1,5 +1,6 @@
 import { BaseModel } from 'tydb'
 import { Cycle } from './Cycles'
+import { CycleMarker } from '../CycleParser'
 
 /** TYPES */
 
@@ -55,6 +56,7 @@ export type TypeName<T extends ValidTypes> = T extends Cycle
 export type TypeIndex<T extends ValidTypes> = T extends Cycle
   ? Cycle['counter']
   : StateMetaData['counter']
+  
 export interface DataRequest<T extends ValidTypes> {
   type: TypeName<T>
   lastData: TypeIndex<T>
@@ -90,8 +92,6 @@ export type StatsClump = {
   coveredParititionCount: number
   skippedParitionCount: number
 }
-
-export type CycleMarker = string
 
 export type StateData = {
   parentCycle?: CycleMarker

@@ -6,14 +6,10 @@ import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
+import { NodeStatus } from './CycleParser'
+
 
 // TYPES
-
-export enum Statuses {
-  ACTIVE = 'active',
-  SYNCING = 'syncing',
-}
-
 export interface ConsensusNodeInfo {
   ip: string
   port: number
@@ -56,7 +52,7 @@ export function isEmpty(): boolean {
 }
 
 export function addNodes(
-  status: Statuses,
+  status: NodeStatus,
   cycleMarkerJoined: string,
   nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ) {
@@ -73,9 +69,9 @@ export function addNodes(
     ) {
       Logger.mainLogger.debug('adding new node', node.publicKey)
       list.push(node)
-      if (status === Statuses.SYNCING) {
+      if (status === NodeStatus.SYNCING) {
         syncingList.set(node.publicKey, node)
-      } else if (status === Statuses.ACTIVE) {
+      } else if (status === NodeStatus.ACTIVE) {
         activeList.set(node.publicKey, node)
       }
 
@@ -133,18 +129,18 @@ export function removeNodes(publicKeys: string[]): string[] {
   return [...keysToDelete.keys()]
 }
 
-export function setStatus(status: Statuses, ...publicKeys: string[]) {
+export function setStatus(status: NodeStatus, ...publicKeys: string[]) {
   for (const key of publicKeys) {
     const node = byPublicKey[key]
     if (node === undefined) {
       console.warn(`setStatus: publicKey ${key} not in nodelist`)
       continue
     }
-    if (status === Statuses.SYNCING) {
+    if (status === NodeStatus.SYNCING) {
       if (activeList.has(key)) activeList.delete(key)
       if (syncingList.has(key)) continue
       syncingList.set(key, node)
-    } else if (status === Statuses.ACTIVE) {
+    } else if (status === NodeStatus.ACTIVE) {
       if (syncingList.has(key)) syncingList.delete(key)
       if (activeList.has(key)) continue
       activeList.set(key, node)
@@ -215,23 +211,8 @@ export function getNodeInfoById(id: string) {
   return byId[id]
 }
 
-export enum NodeStatus {
-  ACTIVE = 'active',
-  SYNCING = 'syncing',
-  REMOVED = 'removed',
-}
 export interface JoinedConsensor extends ConsensusNodeInfo {
   cycleJoined: string
   counterRefreshed: number
   id: string
 }
-
-export interface Node extends JoinedConsensor {
-  curvePublicKey: string
-  status: NodeStatus
-}
-
-type OptionalExceptFor<T, TRequired extends keyof T> = Partial<T> &
-  Pick<T, TRequired>
-
-export type Update = OptionalExceptFor<Node, 'id'>

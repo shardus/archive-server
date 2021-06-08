@@ -12,7 +12,7 @@ import * as Utils from '../Utils'
 import * as Gossip from './Gossip'
 import { isDeepStrictEqual } from 'util'
 import { config, Config } from '../Config'
-import { Change, ChangeSquasher } from '../CycleParser'
+import { Change, ChangeSquasher, NodeStatus } from '../CycleParser'
 
 import {
   Cycle,
@@ -54,6 +54,11 @@ export interface SummaryBlobQueryResponse {
   success: boolean
   data: { [key: number]: SummaryBlob[]}
 }
+export interface StatsClumpQueryResponse {
+  success: boolean
+  data: { [key: number]: StatsClump[]}
+}
+
 export interface DataQueryResponse {
   success: boolean
   data: any
@@ -88,7 +93,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   })
 
 
-  socketClient.on('DATA', (newData: any) => {
+  socketClient.on('DATA', (newData: DataResponse<ValidTypes> & Crypto.TaggedMessage ) => {
     if (!newData || !newData.responses) return
     if (newData.recipient !== State.getNodeInfo().publicKey) {
       Logger.mainLogger.debug('This data is not meant for this archiver')
@@ -115,7 +120,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       }
     }
     
-    socketServer.emit('DATA', newData)
     const sender = dataSenders.get(newData.publicKey)
     // If publicKey is not in dataSenders, dont keepAlive, END
     if (!sender) {
@@ -511,9 +515,13 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
       case TypeNames.CYCLE: {
         Logger.mainLogger.debug('Processing CYCLE data')
         processCycles(newData.responses.CYCLE as Cycle[])
-        socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
+        // socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
         if (newData.responses.CYCLE.length > 0) {
           for (let cycle of newData.responses.CYCLE) {
+            if (!cycle.marker || typeof cycle.marker !== 'string') {
+              Logger.mainLogger.error('Invalid Cycle Marker Received', cycle);
+              return;
+            }
             let archivedCycle: any = {}
             archivedCycle.cycleRecord = cycle
             archivedCycle.cycleMarker = cycle.marker
@@ -544,7 +552,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 }
 
-export async function processStateMetaData (STATE_METADATA: any) {
+export async function processStateMetaData (STATE_METADATA: [StateMetaData]) {
   if (!STATE_METADATA) {
     Logger.mainLogger.error(
       'Invalid STATE_METADATA provided to processStateMetaData function',
@@ -639,7 +647,7 @@ export async function processStateMetaData (STATE_METADATA: any) {
             }
             receiptMapsToForward = receiptMapsToForward.filter(receipt => receipt.cycle === parentCycle.counter)
             Logger.mainLogger.debug('receiptMapsToForward', receiptMapsToForward.length)
-            socketServer.emit('RECEIPT_MAP', receiptMapsToForward)
+            // socketServer.emit('RECEIPT_MAP', receiptMapsToForward)
             break
           }
           retry += 1
@@ -832,7 +840,7 @@ export function parseRecord (record: any): Change {
   const activated = record.activated.map((id: string) => ({
     id,
     activeTimestamp: record.start,
-    status: NodeList.NodeStatus.ACTIVE,
+    status: NodeStatus.ACTIVE,
   }))
 
   const refreshAdded: Change['added'] = []
@@ -856,7 +864,7 @@ export function parseRecord (record: any): Change {
       // (IMPORTANT: update counterRefreshed to the records counter)
       refreshUpdated.push({
         id: refreshed.id,
-        status: NodeList.NodeStatus.ACTIVE,
+        status: NodeStatus.ACTIVE,
         counterRefreshed: record.counter,
       })
     }
@@ -885,7 +893,7 @@ function applyNodeListChange(change: Change) {
       id: jc.id,
     }))
 
-    NodeList.addNodes(NodeList.Statuses.ACTIVE, change.added[0].cycleJoined, consensorInfos)
+    NodeList.addNodes(NodeStatus.ACTIVE, change.added[0].cycleJoined, consensorInfos)
   }
   if (change.removed.length > 0) {
     NodeList.removeNodes(change.removed)
@@ -1107,6 +1115,8 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
   return false
 }
 
+export type QueryDataResponse = ReceiptMapQueryResponse | StatsClumpQueryResponse
+
 async function queryDataFromNode (
   consensorNode: NodeList.ConsensusNodeInfo,
   dataQuery: any,
@@ -1121,10 +1131,11 @@ async function queryDataFromNode (
     let response = await P2P.postJson(
       `http://${consensorNode.ip}:${consensorNode.port}/querydata`,
       request
-    )
+    ) as QueryDataResponse
     if (response && request.type === 'RECEIPT_MAP') {
+      let receiptMapData = response.data as ReceiptMapQueryResponse['data']
       for (let counter in response.data) {
-        result = await validateAndStoreReceiptMaps(response.data, validateFn)
+        result = await validateAndStoreReceiptMaps(receiptMapData, validateFn)
       }
     } else if (response && request.type === 'SUMMARY_BLOB') {
       for (let counter in response.data) {
