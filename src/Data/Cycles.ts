@@ -4,7 +4,8 @@ import * as Crypto from '../Crypto'
 import { safeParse } from '../Utils'
 import * as State from '../State'
 import * as Logger from '../Logger'
-import { NodeStatus, CycleRecord } from '../CycleParser'
+import { CycleRecord } from '../shared-types/Cycle/CycleCreatorTypes'
+import { NodeStatus } from '../shared-types/Cycle/P2PTypes'
 
 export interface Cycle extends CycleRecord {
   certificate: string

@@ -13,8 +13,9 @@ import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
 import * as Logger from './Logger'
-import { TypeNames, StateMetaData } from './Data/StateParser'
-import { NodeStatus } from './CycleParser'
+import { StateMetaData } from './shared-types/State'
+import { TypeNames } from './shared-types/Cycle/ArchiversTypes'
+import { NodeStatus } from './shared-types/Cycle/P2PTypes'
 
 
 // Socket modules

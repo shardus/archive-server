@@ -12,7 +12,8 @@ import * as Utils from '../Utils'
 import * as Gossip from './Gossip'
 import { isDeepStrictEqual } from 'util'
 import { config, Config } from '../Config'
-import { Change, ChangeSquasher, NodeStatus } from '../CycleParser'
+import { Change, ChangeSquasher } from '../shared-functions/Cycle';
+import { NodeStatus, SignedObject } from '../shared-types/Cycle/P2PTypes'
 
 import {
   Cycle,
@@ -24,7 +25,8 @@ import {
 } from './Cycles'
 import { BaseModel } from 'tydb'
 import * as Logger from '../Logger'
-import { ValidTypes, TypeName, DataRequest, TypeNames, TypeIndex, SummaryBlob, ReceiptMapResult, StateMetaData ,StatsClump } from './StateParser'
+import { SummaryBlob, ReceiptMapResult, StateMetaData ,StatsClump } from '../shared-types/State'
+import { ValidTypes, TypeName, DataRequest, TypeNames, TypeIndex } from '../shared-types/Cycle/ArchiversTypes'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -381,7 +383,7 @@ export async function joinNetwork (
 
 export async function submitJoin(
   nodes: NodeList.ConsensusNodeInfo[],
-  joinRequest: P2P.ArchiverJoinRequest & Crypto.types.SignedObject
+  joinRequest: P2P.ArchiverJoinRequest & SignedObject
 ) {
   // Send the join request to a handful of the active node all at once:w
   const selectedNodes = Utils.getRandom(nodes, Math.min(nodes.length, 5))

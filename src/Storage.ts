@@ -1,13 +1,22 @@
-import { CycleChain } from './Data/Cycles'
+import { CycleChain, Cycle  } from './Data/Cycles'
 import { config } from './Config'
 import knex = require('knex')
 import { socketServer } from './Data/Data'
-import { Database, FS_Persistence_Adapter } from 'tydb'
+import { Database, FS_Persistence_Adapter, BaseModel } from 'tydb'
 import * as Crypto from './Crypto'
 import * as Logger from './Logger'
-import { ArchivedCycle, ReceiptMapResult, SummaryBlob  } from './Data/StateParser'
+import { StateData, Receipt, Summary, ReceiptMapResult, SummaryBlob  } from './shared-types/State'
+import { CycleMarker } from './shared-types/Cycle/CycleCreatorTypes'
 
 export let Collection: any
+
+export class ArchivedCycle extends BaseModel {
+  cycleRecord!: Cycle
+  cycleMarker!: CycleMarker
+  data!: StateData
+  receipt!: Receipt
+  summary!: Summary
+}
 
 export const initStorage = async () => {
   Collection = new Database<ArchivedCycle>({

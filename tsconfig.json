@@ -6,6 +6,8 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     // "esModuleInterop": true
+    "strict": false,
+    "noImplicitReturns": false,
   },
   "exclude": ["build"]
 }

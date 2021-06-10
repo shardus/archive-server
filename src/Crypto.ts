@@ -1,6 +1,7 @@
 import * as core from 'shardus-crypto-utils'
 import * as cryptoTypes from './shardus-crypto-types'
 import * as State from './State'
+import { SignedObject } from './shared-types/Cycle/P2PTypes'
 
 // Crypto initialization fns
 
@@ -11,15 +12,15 @@ export function setCryptoHashKey(hashkey: string) {
 export const hashObj = core.hashObj
 
 // Asymmetric Encyption Sign/Verify API
-export type SignedMessage = cryptoTypes.SignedObject
+export type SignedMessage = SignedObject
 
-export function sign<T>(obj: T): T & cryptoTypes.SignedObject {
+export function sign<T>(obj: T): T & SignedObject {
   const objCopy = JSON.parse(core.stringify(obj))
   core.signObj(objCopy, State.getSecretKey(), State.getNodeInfo().publicKey)
   return objCopy
 }
 
-export function verify(obj: cryptoTypes.SignedObject): boolean {
+export function verify(obj: SignedObject): boolean {
   return core.verifyObj(obj)
 }
 

@@ -6,7 +6,7 @@ import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
-import { NodeStatus } from './CycleParser'
+import { NodeStatus } from './shared-types/Cycle/P2PTypes'
 
 
 // TYPES

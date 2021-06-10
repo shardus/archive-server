@@ -1,6 +1,4 @@
-import { BaseModel } from 'tydb'
-import { Cycle } from './Cycles'
-import { CycleMarker } from '../CycleParser'
+import { CycleMarker, CycleRecord as Cycle } from '../Cycle/CycleCreatorTypes'
 
 /** TYPES */
 
@@ -42,26 +40,6 @@ export interface StateMetaData {
   summaryHashes: SummaryHashes[]
 }
 
-export type ValidTypes = Cycle | StateMetaData
-
-export enum TypeNames {
-  CYCLE = 'CYCLE',
-  STATE_METADATA = 'STATE_METADATA',
-}
-
-export type TypeName<T extends ValidTypes> = T extends Cycle
-  ? TypeNames.CYCLE
-  : TypeNames.STATE_METADATA
-
-export type TypeIndex<T extends ValidTypes> = T extends Cycle
-  ? Cycle['counter']
-  : StateMetaData['counter']
-  
-export interface DataRequest<T extends ValidTypes> {
-  type: TypeName<T>
-  lastData: TypeIndex<T>
-}
-
 export type ReceiptMap = { [txId: string]: string[] }
 
 export type ReceiptMapResult = {
@@ -71,15 +49,21 @@ export type ReceiptMapResult = {
   txCount: number
 }
 
-type OpaqueBlob = any
+export type OpaqueBlob = any //Shardus is not supposed to know about the details of this, it is up to the dapp to define
 
+//Shardus wrapper for a summary blob.  Has information that is needed for the reduce algorithm
 export type SummaryBlob = {
-  cycle: number
   latestCycle: number //The highest cycle that was used in this summary.
   counter: number
   errorNull: number
   partition: number
   opaqueBlob: OpaqueBlob
+}
+
+//A collection of blobs that share the same cycle.  For TX summaries
+export type SummaryBlobCollection = {
+  cycle: number
+  blobsByPartition: Map<number, SummaryBlob>
 }
 
 // Stats collected for a cycle
@@ -112,27 +96,4 @@ export type Summary = {
   networkHash?: string
   partitionHashes?: string[]
   partitionBlobs?: { [partition: number]: SummaryBlob }
-}
-
-export class ArchivedCycle extends BaseModel {
-  cycleRecord!: Cycle
-  cycleMarker!: CycleMarker
-  data!: StateData
-  receipt!: Receipt
-  summary!: Summary
-}
-
-// For Explorer; maybe we need to push to another file; Also need to apply this in shardFunctions.ts
-export function addressNumberToPartition(
-  numPartitions: number,
-  addressNum: number
-): number {
-  // 2^32  4294967296 or 0xFFFFFFFF + 1
-  let size = Math.round((0xffffffff + 1) / numPartitions)
-  let homePartition = Math.floor(addressNum / size)
-  if (homePartition === numPartitions) {
-    homePartition = homePartition - 1
-  }
-
-  return homePartition
 }

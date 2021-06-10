@@ -5,7 +5,8 @@ import * as NodeList from './NodeList'
 import 'node-fetch'
 import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
-import { StateHashes, ReceiptHashes, DataRequest, StateMetaData } from './Data/StateParser'
+import { StateMetaData } from '../src/shared-types/State'
+import { DataRequest } from '../src/shared-types/Cycle/ArchiversTypes'
 
 export enum RequestTypes {
   JOIN = 'JOIN',
