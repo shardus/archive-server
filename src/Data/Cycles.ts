@@ -3,10 +3,9 @@ import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
 import * as State from '../State'
 import * as Logger from '../Logger'
-import { CycleRecord } from '../shared-types/Cycle/CycleCreatorTypes'
-import { NodeStatus } from '../shared-types/Cycle/P2PTypes'
+import { CycleCreatorTypes,P2PTypes } from 'shardus-parser'
 
-export interface Cycle extends CycleRecord {
+export interface Cycle extends CycleCreatorTypes.CycleRecord {
   certificate: string
   marker: string
 }
@@ -72,9 +71,9 @@ function updateNodeList(cycle: Cycle) {
     id: jc.id,
   }))
 
-  NodeList.addNodes(NodeStatus.SYNCING, cycle.marker, consensorInfos)
+  NodeList.addNodes(P2PTypes.NodeStatus.SYNCING, cycle.marker, consensorInfos)
 
-  NodeList.setStatus(NodeStatus.ACTIVE, ...activatedPublicKeys)
+  NodeList.setStatus(P2PTypes.NodeStatus.ACTIVE, ...activatedPublicKeys)
 
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)

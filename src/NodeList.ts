@@ -3,11 +3,9 @@ import * as Crypto from './Crypto'
 import * as State from './State'
 import * as P2P from './P2P'
 import * as Data from './Data/Data'
-import * as Utils from './shared-functions/Utils'
-import * as P2PUtils from './shared-functions/P2PUtils'
+import {Utils, P2PUtils, P2PTypes} from 'shardus-parser'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
-import { NodeStatus } from './shared-types/Cycle/P2PTypes'
 
 
 // TYPES
@@ -53,7 +51,7 @@ export function isEmpty(): boolean {
 }
 
 export function addNodes(
-  status: NodeStatus,
+  status: P2PTypes.NodeStatus,
   cycleMarkerJoined: string,
   nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ) {
@@ -70,9 +68,9 @@ export function addNodes(
     ) {
       Logger.mainLogger.debug('adding new node', node.publicKey)
       list.push(node)
-      if (status === NodeStatus.SYNCING) {
+      if (status === P2PTypes.NodeStatus.SYNCING) {
         syncingList.set(node.publicKey, node)
-      } else if (status === NodeStatus.ACTIVE) {
+      } else if (status === P2PTypes.NodeStatus.ACTIVE) {
         activeList.set(node.publicKey, node)
       }
 
@@ -130,18 +128,18 @@ export function removeNodes(publicKeys: string[]): string[] {
   return [...keysToDelete.keys()]
 }
 
-export function setStatus(status: NodeStatus, ...publicKeys: string[]) {
+export function setStatus(status: P2PTypes.NodeStatus, ...publicKeys: string[]) {
   for (const key of publicKeys) {
     const node = byPublicKey[key]
     if (node === undefined) {
       console.warn(`setStatus: publicKey ${key} not in nodelist`)
       continue
     }
-    if (status === NodeStatus.SYNCING) {
+    if (status === P2PTypes.NodeStatus.SYNCING) {
       if (activeList.has(key)) activeList.delete(key)
       if (syncingList.has(key)) continue
       syncingList.set(key, node)
-    } else if (status === NodeStatus.ACTIVE) {
+    } else if (status === P2PTypes.NodeStatus.ACTIVE) {
       if (syncingList.has(key)) syncingList.delete(key)
       if (activeList.has(key)) continue
       activeList.set(key, node)

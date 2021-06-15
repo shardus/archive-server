@@ -8,13 +8,10 @@ import * as Storage from '../Storage'
 import * as Cycles from './Cycles'
 import * as State from '../State'
 import * as P2P from '../P2P'
-import * as Utils from '../shared-functions/Utils'
-import * as P2PUtils from '../shared-functions/P2PUtils'
+import { Utils, P2PUtils, Changer, P2PTypes, ArchiversTypes ,StateTypes} from 'shardus-parser'
 import * as Gossip from './Gossip'
 import { isDeepStrictEqual } from 'util'
 import { config, Config } from '../Config'
-import { Change, ChangeSquasher } from '../shared-functions/Cycle';
-import { NodeStatus, SignedObject } from '../shared-types/Cycle/P2PTypes'
 
 import {
   Cycle,
@@ -26,16 +23,14 @@ import {
 } from './Cycles'
 import { BaseModel } from 'tydb'
 import * as Logger from '../Logger'
-import { SummaryBlob, ReceiptMapResult, StateMetaData ,StatsClump } from '../shared-types/State'
-import { ValidTypes, TypeName, DataRequest, TypeNames, TypeIndex } from '../shared-types/Cycle/ArchiversTypes'
 
 // Socket modules
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic["Socket"]
 
-interface DataResponse<T extends ValidTypes> {
-  type: TypeName<T>
+interface DataResponse<T extends ArchiversTypes.ValidTypes>{
+  type: ArchiversTypes.TypeName<T>
   data: T[]
 }
 
@@ -46,20 +41,20 @@ interface DataKeepAlive {
 //A collection of blobs that share the same cycle.  For TX summaries
 type SummaryBlobCollection = {
   cycle:number; 
-  blobsByPartition:Map<number, SummaryBlob>;
+  blobsByPartition:Map<number, StateTypes.SummaryBlob>;
 }
 
 export interface ReceiptMapQueryResponse {
   success: boolean
-  data: { [key: number]: ReceiptMapResult[]}
+  data: { [key: number]: StateTypes.ReceiptMapResult[]}
 }
 export interface SummaryBlobQueryResponse {
   success: boolean
-  data: { [key: number]: SummaryBlob[]}
+  data: { [key: number]: StateTypes.SummaryBlob[]}
 }
 export interface StatsClumpQueryResponse {
   success: boolean
-  data: { [key: number]: StatsClump[]}
+  data: { [key: number]: StateTypes.StatsClump[]}
 }
 
 export interface DataQueryResponse {
@@ -96,7 +91,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   })
 
 
-  socketClient.on('DATA', (newData: DataResponse<ValidTypes> & Crypto.TaggedMessage ) => {
+  socketClient.on('DATA', (newData: ArchiversTypes.DataResponse & Crypto.TaggedMessage ) => {
     if (!newData || !newData.responses) return
     if (newData.recipient !== State.getNodeInfo().publicKey) {
       Logger.mainLogger.debug('This data is not meant for this archiver')
@@ -132,7 +127,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 
     // If unexpected data type from sender, dont keepAlive, END
     const newDataTypes = Object.keys(newData.responses)
-    for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
+    for (const type of newDataTypes as (keyof typeof ArchiversTypes.TypeNames)[]) {
       if (sender.types.includes(type) === false) {
         Logger.mainLogger.debug(
           `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(
@@ -146,12 +141,12 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   })
 }
 
-export function createDataRequest<T extends ValidTypes>(
-  type: TypeName<T>,
-  lastData: TypeIndex<T>,
+export function createDataRequest<T extends ArchiversTypes.ValidTypes>(
+  type: ArchiversTypes.TypeName<T>,
+  lastData: ArchiversTypes.TypeIndex<T>,
   recipientPk: Crypto.types.publicKey
 ) {
-  return Crypto.tag<DataRequest<T>>(
+  return Crypto.tag<ArchiversTypes.DataRequest<T>>(
     {
       type,
       lastData,
@@ -160,7 +155,7 @@ export function createDataRequest<T extends ValidTypes>(
   )
 }
 
-export function createQueryRequest<T extends ValidTypes>(
+export function createQueryRequest<T extends ArchiversTypes.ValidTypes>(
   type: string,
   lastData: number,
   recipientPk: Crypto.types.publicKey
@@ -177,7 +172,7 @@ export function createQueryRequest<T extends ValidTypes>(
 
 export interface DataSender {
   nodeInfo: NodeList.ConsensusNodeInfo
-  types: (keyof typeof TypeNames)[]
+  types: (keyof typeof ArchiversTypes.TypeNames)[]
   contactTimeout?: NodeJS.Timeout | null
   replaceTimeout?: NodeJS.Timeout | null
 }
@@ -218,7 +213,7 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
   }
   const newSender: DataSender = {
     nodeInfo: newSenderInfo,
-    types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
+    types: [ArchiversTypes.TypeNames.CYCLE, ArchiversTypes.TypeNames.STATE_METADATA],
     contactTimeout: createContactTimeout(newSenderInfo.publicKey, "This timeout is created during newSender selection", 2 * currentCycleDuration),
     replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
   }
@@ -232,12 +227,12 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
   // Send dataRequest to new dataSender
   const dataRequest = {
     dataRequestCycle: createDataRequest<Cycle>(
-      TypeNames.CYCLE,
+      ArchiversTypes.TypeNames.CYCLE,
       currentCycleCounter,
       publicKey
     ),
-    dataRequestStateMetaData: createDataRequest<StateMetaData>(
-      TypeNames.STATE_METADATA,
+    dataRequestStateMetaData: createDataRequest<StateTypes.StateMetaData>(
+      ArchiversTypes.TypeNames.STATE_METADATA,
       lastProcessedMetaData,
       publicKey
     )
@@ -384,7 +379,7 @@ export async function joinNetwork (
 
 export async function submitJoin(
   nodes: NodeList.ConsensusNodeInfo[],
-  joinRequest: P2P.ArchiverJoinRequest & SignedObject
+  joinRequest: P2P.ArchiverJoinRequest & P2PTypes.SignedObject
 ) {
   // Send the join request to a handful of the active node all at once:w
   const selectedNodes = Utils.getRandom(nodes, Math.min(nodes.length, 5))
@@ -490,7 +485,7 @@ async function sendDataQuery(
   return result
 }
 
-async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
+async function processData(newData: ArchiversTypes.DataResponse & Crypto.TaggedMessage) {
   // Get sender entry
   const sender = dataSenders.get(newData.publicKey)
 
@@ -511,16 +506,17 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 
   const newDataTypes = Object.keys(newData.responses)
-  for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
+  for (const type of newDataTypes as (keyof typeof ArchiversTypes.TypeNames)[]) {
 
     // Process data depending on type
     switch (type) {
-      case TypeNames.CYCLE: {
+      case ArchiversTypes.TypeNames.CYCLE: {
         Logger.mainLogger.debug('Processing CYCLE data')
-        processCycles(newData.responses.CYCLE as Cycle[])
+        const cycle_data = newData.responses.CYCLE as Cycle[]
+        processCycles(cycle_data)
         // socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
-        if (newData.responses.CYCLE.length > 0) {
-          for (let cycle of newData.responses.CYCLE) {
+        if (cycle_data.length > 0) {
+          for (let cycle of cycle_data) {
             if (!cycle.marker || typeof cycle.marker !== 'string') {
               Logger.mainLogger.error('Invalid Cycle Marker Received', cycle);
               return;
@@ -532,13 +528,14 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
             await Storage.insertArchivedCycle(archivedCycle)
           }
         } else {
-          Logger.mainLogger.error('Recieved empty newData.responses.CYCLE', newData.responses)
+          Logger.mainLogger.error('Recieved empty cycle_data', newData.responses)
         }
         break
       }
-      case TypeNames.STATE_METADATA: {
+      case ArchiversTypes.TypeNames.STATE_METADATA: {
         Logger.mainLogger.debug('Processing STATE_METADATA')
-        processStateMetaData(newData.responses.STATE_METADATA)
+        const cycle_data = newData.responses.STATE_METADATA as StateTypes.StateMetaData[]
+        processStateMetaData(cycle_data)
         break
       }
       default: {
@@ -555,7 +552,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 }
 
-export async function processStateMetaData (STATE_METADATA: [StateMetaData]) {
+export async function processStateMetaData (STATE_METADATA: StateTypes.StateMetaData[]) {
   if (!STATE_METADATA) {
     Logger.mainLogger.error(
       'Invalid STATE_METADATA provided to processStateMetaData function',
@@ -838,16 +835,16 @@ export function totalNodeCount(cycle: Cycle) {
   )
 }
 
-export function parseRecord (record: any): Change {
+export function parseRecord (record: any): Changer.Change {
   // For all nodes described by activated, make an update to change their status to active
   const activated = record.activated.map((id: string) => ({
     id,
     activeTimestamp: record.start,
-    status: NodeStatus.ACTIVE,
+    status: P2PTypes.NodeStatus.ACTIVE,
   }))
 
-  const refreshAdded: Change['added'] = []
-  const refreshUpdated: Change['updated'] = []
+  const refreshAdded: Changer.Change['added'] = []
+  const refreshUpdated: Changer.Change['updated'] = []
   for (const refreshed of record.refreshedConsensors) {
     // const node = NodeList.nodes.get(refreshed.id)
     const node = NodeList.getNodeInfoById(refreshed.id) as NodeList.JoinedConsensor
@@ -867,7 +864,7 @@ export function parseRecord (record: any): Change {
       // (IMPORTANT: update counterRefreshed to the records counter)
       refreshUpdated.push({
         id: refreshed.id,
-        status: NodeStatus.ACTIVE,
+        status: P2PTypes.NodeStatus.ACTIVE,
         counterRefreshed: record.counter,
       })
     }
@@ -880,14 +877,14 @@ export function parseRecord (record: any): Change {
   }
 }
 
-export function parse (record: any): Change {
+export function parse (record: any): Changer.Change {
   const changes = parseRecord(record)
-  // const mergedChange = deepmerge.all<Change>(changes)
+  // const mergedChange = deepmerge.all<Changer.Change>(changes)
   // return mergedChange
   return changes
 }
 
-function applyNodeListChange(change: Change) {
+function applyNodeListChange(change: Changer.Change) {
   if (change.added.length > 0) {
     const consensorInfos = change.added.map((jc: any) => ({
       ip: jc.externalIp,
@@ -896,7 +893,7 @@ function applyNodeListChange(change: Change) {
       id: jc.id,
     }))
 
-    NodeList.addNodes(NodeStatus.ACTIVE, change.added[0].cycleJoined, consensorInfos)
+    NodeList.addNodes(P2PTypes.NodeStatus.ACTIVE, change.added[0].cycleJoined, consensorInfos)
   }
   if (change.removed.length > 0) {
     NodeList.removeNodes(change.removed)
@@ -913,7 +910,7 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
   Logger.mainLogger.debug(`Cycles to get is ${cyclesToGet}`)
 
   let CycleChain = []
-  const squasher = new ChangeSquasher()
+  const squasher = new Changer.ChangeSquasher()
 
   CycleChain.unshift(cycleToSyncTo)
   squasher.addChange(parse(CycleChain[0]))
@@ -1154,14 +1151,14 @@ async function queryDataFromNode (
 }
 
 async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
-  [key: number]: ReceiptMapResult[]
+  [key: number]: StateTypes.ReceiptMapResult[]
 }, validateFn: any) {
   let completed: number[] = []
   let failed: number[] = []
   let coveredPartitions: number[] = []
   let receiptMaps: any = {}
   for (let counter in receiptMapResultsForCycles) {
-    let receiptMapResults: ReceiptMapResult[] =
+    let receiptMapResults: StateTypes.ReceiptMapResult[] =
       receiptMapResultsForCycles[counter]
     for (let partitionBlock of receiptMapResults) {
       let { partition } = partitionBlock
@@ -1198,7 +1195,7 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
 }
 
 async function validateAndStoreSummaryBlobs (
-  statsClumpForCycles: StatsClump[],
+  statsClumpForCycles: StateTypes.StatsClump[],
   validateFn: any
 ) {
   let completed: number[] = []

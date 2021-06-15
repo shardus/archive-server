@@ -5,17 +5,16 @@ import { socketServer } from './Data/Data'
 import { Database, FS_Persistence_Adapter, BaseModel } from 'tydb'
 import * as Crypto from './Crypto'
 import * as Logger from './Logger'
-import { StateData, Receipt, Summary, ReceiptMapResult, SummaryBlob  } from './shared-types/State'
-import { CycleMarker } from './shared-types/Cycle/CycleCreatorTypes'
+import { CycleCreatorTypes, StateTypes } from 'shardus-parser'
 
 export let Collection: any
 
 export class ArchivedCycle extends BaseModel {
   cycleRecord!: Cycle
-  cycleMarker!: CycleMarker
-  data!: StateData
-  receipt!: Receipt
-  summary!: Summary
+  cycleMarker!: CycleCreatorTypes.CycleMarker
+  data!: StateTypes.StateData
+  receipt!: StateTypes.Receipt
+  summary!: StateTypes.Summary
 }
 
 export const initStorage = async () => {
@@ -49,7 +48,7 @@ export async function insertArchivedCycle(archivedCycle: any) {
 }
 
 export async function updateReceiptMap (
-  receiptMapResult: ReceiptMapResult
+  receiptMapResult: StateTypes.ReceiptMapResult
 ) {
   if (!receiptMapResult) return
   try {
@@ -105,7 +104,7 @@ export async function updateReceiptMap (
 }
 
 export async function updateSummaryBlob (
-  summaryBlob: SummaryBlob,
+  summaryBlob: StateTypes.SummaryBlob,
   cycle: number
 ) {
   if (!summaryBlob) return

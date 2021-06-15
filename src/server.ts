@@ -10,12 +10,9 @@ import * as P2P from './P2P'
 import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
-import * as Utils from './shared-functions/Utils'
+import { Utils, StateTypes, ArchiversTypes, P2PTypes} from 'shardus-parser'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
 import * as Logger from './Logger'
-import { StateMetaData } from './shared-types/State'
-import { TypeNames } from './shared-types/Cycle/ArchiversTypes'
-import { NodeStatus } from './shared-types/Cycle/P2PTypes'
 
 
 // Socket modules
@@ -110,7 +107,7 @@ async function syncAndStartServer() {
   let randomConsensor = NodeList.getRandomActiveNode()
   Data.addDataSenders({
     nodeInfo: randomConsensor,
-    types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
+    types: [ArchiversTypes.TypeNames.CYCLE, ArchiversTypes.TypeNames.STATE_METADATA],
   })
 
   // wait for one cycle before sending data request
@@ -119,19 +116,19 @@ async function syncAndStartServer() {
   // After we've joined, select a consensus node as a dataSender
   const dataRequest = Crypto.sign({
     dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-      TypeNames.CYCLE,
+      ArchiversTypes.TypeNames.CYCLE,
       Cycles.getCurrentCycleCounter(),
       randomConsensor.publicKey
     ),
-    dataRequestStateMetaData: Data.createDataRequest<StateMetaData>(
-      TypeNames.STATE_METADATA,
+    dataRequestStateMetaData: Data.createDataRequest<StateTypes.StateMetaData>(
+      ArchiversTypes.TypeNames.STATE_METADATA,
       Cycles.lastProcessedMetaData,
       randomConsensor.publicKey
     ),
   })
   const newSender: Data.DataSender = {
     nodeInfo: randomConsensor,
-    types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
+    types: [ArchiversTypes.TypeNames.CYCLE, ArchiversTypes.TypeNames.STATE_METADATA],
     contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
     replaceTimeout: Data.createReplaceTimeout(randomConsensor.publicKey),
   }
@@ -201,11 +198,11 @@ function startServer() {
       Data.initSocketClient(firstNode)
 
       // Add first node to NodeList
-      NodeList.addNodes(NodeStatus.SYNCING, 'bogus', [firstNode])
+      NodeList.addNodes(P2PTypes.NodeStatus.SYNCING, 'bogus', [firstNode])
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
+        types: [ArchiversTypes.TypeNames.CYCLE, ArchiversTypes.TypeNames.STATE_METADATA],
         replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
       })
 
@@ -213,12 +210,12 @@ function startServer() {
         nodeList: NodeList.getList(),
         joinRequest: P2P.createArchiverJoinRequest(),
         dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-          TypeNames.CYCLE,
+          ArchiversTypes.TypeNames.CYCLE,
           Cycles.currentCycleCounter,
           publicKey
         ),
-        dataRequestStateMetaData: Data.createDataRequest<StateMetaData>(
-          TypeNames.STATE_METADATA,
+        dataRequestStateMetaData: Data.createDataRequest<StateTypes.StateMetaData>(
+          ArchiversTypes.TypeNames.STATE_METADATA,
           Cycles.lastProcessedMetaData,
           publicKey
         ),

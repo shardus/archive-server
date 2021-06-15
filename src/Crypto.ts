@@ -1,9 +1,9 @@
 import * as core from 'shardus-crypto-utils'
 import * as cryptoTypes from './shardus-crypto-types'
 import * as State from './State'
-import { SignedObject, LooseObject } from './shared-types/Cycle/P2PTypes'
+import { P2PTypes } from 'shardus-parser'
 
-export interface TaggedObject extends LooseObject {
+export interface TaggedObject extends P2PTypes.LooseObject {
   tag: cryptoTypes.hexstring
 }
 
@@ -16,15 +16,15 @@ export function setCryptoHashKey(hashkey: string) {
 export const hashObj = core.hashObj
 
 // Asymmetric Encyption Sign/Verify API
-export type SignedMessage = SignedObject
+export type SignedMessage = P2PTypes.SignedObject
 
-export function sign<T>(obj: T): T & SignedObject {
+export function sign<T>(obj: T): T & P2PTypes.SignedObject {
   const objCopy = JSON.parse(core.stringify(obj))
   core.signObj(objCopy, State.getSecretKey(), State.getNodeInfo().publicKey)
   return objCopy
 }
 
-export function verify(obj: SignedObject): boolean {
+export function verify(obj: P2PTypes.SignedObject): boolean {
   return core.verifyObj(obj)
 }
 

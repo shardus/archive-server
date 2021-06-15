@@ -5,8 +5,7 @@ import * as NodeList from './NodeList'
 import 'node-fetch'
 import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
-import { StateMetaData } from '../src/shared-types/State'
-import { DataRequest } from '../src/shared-types/Cycle/ArchiversTypes'
+import { StateTypes, ArchiversTypes } from 'shardus-parser'
 
 export enum RequestTypes {
   JOIN = 'JOIN',
@@ -30,8 +29,8 @@ export interface FirstNodeInfo {
 export interface FirstNodeResponse {
   nodeList: NodeList.ConsensusNodeInfo[]
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
-  dataRequestCycle?: DataRequest<Cycle> & Crypto.TaggedMessage
-  dataRequestStateMetaData?: DataRequest<StateMetaData> & Crypto.TaggedMessage
+  dataRequestCycle?: ArchiversTypes.DataRequest<Cycle> & Crypto.TaggedMessage
+  dataRequestStateMetaData?: ArchiversTypes.DataRequest<StateTypes.StateMetaData> & Crypto.TaggedMessage
 }
 
 export function createArchiverJoinRequest() {
