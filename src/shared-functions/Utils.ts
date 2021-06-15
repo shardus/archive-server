@@ -148,3 +148,26 @@ export function validateTypes(inp, def) {
   }
   return ''
 }
+
+export function safeParse<Type>(
+  fallback: Type,
+  json: string,
+  msg?: string
+): Type {
+  if (typeof json === 'object' && json !== null) {
+    return json
+  }
+  try {
+    return JSON.parse(json)
+  } catch (err) {
+    console.warn(msg ? msg : err)
+    return fallback
+  }
+}
+
+export function getRandomItemFromArr(arr: any[]): any {
+  if (!Array.isArray(arr)) return
+  if (arr.length === 0) return
+  const randomIndex = Math.floor(Math.random() * arr.length)
+  return arr[randomIndex]
+}

@@ -8,7 +8,8 @@ import * as Storage from '../Storage'
 import * as Cycles from './Cycles'
 import * as State from '../State'
 import * as P2P from '../P2P'
-import * as Utils from '../Utils'
+import * as Utils from '../shared-functions/Utils'
+import * as P2PUtils from '../shared-functions/P2PUtils'
 import * as Gossip from './Gossip'
 import { isDeepStrictEqual } from 'util'
 import { config, Config } from '../Config'
@@ -436,7 +437,7 @@ export async function getNewestCycleFromConsensors(activeNodes: NodeList.Consens
     )
     if(response.newestCycle) return response.newestCycle
   }
-  let newestCycle: any = await Utils.robustQuery(
+  let newestCycle: any = await P2PUtils.robustQuery(
     activeNodes,
     queryFn,
     isSameCyceInfo
@@ -763,7 +764,7 @@ export async function fetchStateHashes (archivers: any) {
     )
     return response.stateHashes
   }
-  const stateHashes:any = await Utils.robustQuery(
+  const stateHashes:any = await P2PUtils.robustQuery(
     archivers,
     queryFn,
     _isSameStateHashes
@@ -787,7 +788,7 @@ export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[
     )
     return response.cycleInfo
   }
-  const { result } = await Utils.sequentialQuery(activeArchivers, queryFn)
+  const { result } = await P2PUtils.sequentialQuery(activeArchivers, queryFn)
   return result
 }
 
@@ -807,7 +808,7 @@ export async function getNewestCycleFromArchivers(activeArchivers: State.Archive
     )
     return response.cycleInfo
   }
-  let cycleInfo: any = await Utils.robustQuery(
+  let cycleInfo: any = await P2PUtils.robustQuery(
     activeArchivers,
     queryFn,
     isSameCyceInfo

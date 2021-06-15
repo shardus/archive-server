@@ -1,7 +1,11 @@
 import * as core from 'shardus-crypto-utils'
 import * as cryptoTypes from './shardus-crypto-types'
 import * as State from './State'
-import { SignedObject } from './shared-types/Cycle/P2PTypes'
+import { SignedObject, LooseObject } from './shared-types/Cycle/P2PTypes'
+
+export interface TaggedObject extends LooseObject {
+  tag: cryptoTypes.hexstring
+}
 
 // Crypto initialization fns
 
@@ -26,7 +30,7 @@ export function verify(obj: SignedObject): boolean {
 
 // HMAC Tag/Authenticate API
 
-export interface TaggedMessage extends cryptoTypes.TaggedObject {
+export interface TaggedMessage extends TaggedObject {
   publicKey: cryptoTypes.publicKey
 }
 

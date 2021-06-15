@@ -1,7 +1,6 @@
 import * as Storage from '../Storage'
 import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
-import { safeParse } from '../Utils'
 import * as State from '../State'
 import * as Logger from '../Logger'
 import { CycleRecord } from '../shared-types/Cycle/CycleCreatorTypes'
@@ -66,13 +65,6 @@ function updateNodeList(cycle: Cycle) {
 
   const { joinedConsensors, activatedPublicKeys, removed, lost, apoptosized, joinedArchivers, leavingArchivers, } = cycle
 
-  // Add joined nodes
-  // const joinedConsensors = safeParse<JoinedConsensor[]>(
-  //   [],
-  //   cycle.joinedConsensors,
-  //   `Error processing cycle ${cycle.counter}: failed to parse joinedConsensors`
-  // )
-
   const consensorInfos = joinedConsensors.map((jc) => ({
     ip: jc.externalIp,
     port: jc.externalPort,
@@ -82,20 +74,8 @@ function updateNodeList(cycle: Cycle) {
 
   NodeList.addNodes(NodeStatus.SYNCING, cycle.marker, consensorInfos)
 
-  // Update activated nodes
-  // const activatedPublicKeys = safeParse<string[]>(
-  //   [],
-  //   cycle.activatedPublicKeys,
-  //   `Error processing cycle ${cycle.counter}: failed to parse activated`
-  // )
   NodeList.setStatus(NodeStatus.ACTIVE, ...activatedPublicKeys)
 
-  // Remove removed nodes
-  // const removed = safeParse<string[]>(
-  //   [],
-  //   cycle.removed,
-  //   `Error processing cycle ${cycle.counter}: failed to parse removed`
-  // )
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
@@ -105,12 +85,6 @@ function updateNodeList(cycle: Cycle) {
   }, [])
   NodeList.removeNodes(removedPks)
 
-  // Remove lost nodes
-  // const lost = safeParse<string[]>(
-  //   [],
-  //   cycle.lost,
-  //   `Error processing cycle ${cycle.counter}: failed to parse lost`
-  // )
   const lostPks = lost.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
@@ -120,12 +94,6 @@ function updateNodeList(cycle: Cycle) {
   }, [])
   NodeList.removeNodes(lostPks)
 
-  // Remove apoptosized nodes
-  // const apoptosized = safeParse<string[]>(
-  //   [],
-  //   cycle.apoptosized,
-  //   `Error processing cycle ${cycle.counter}: failed to parse apoptosized`
-  // )
   const apoptosizedPks = apoptosized.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
@@ -134,11 +102,7 @@ function updateNodeList(cycle: Cycle) {
     return keys
   }, [])
   NodeList.removeNodes(apoptosizedPks)
-  // const joinedArchivers = safeParse<State.ArchiverNodeState[]>(
-  //   [],
-  //   cycle.joinedArchivers,
-  //   `Error processing cycle ${cycle.counter}: failed to parse joinedArchivers`
-  // )
+
   for (let joinedArchiver of joinedArchivers) {
     let foundArchiver = State.activeArchivers.find(a => a.publicKey === joinedArchiver.publicKey)
     if (!foundArchiver) {
@@ -148,11 +112,6 @@ function updateNodeList(cycle: Cycle) {
     Logger.mainLogger.debug('active archiver list', State.activeArchivers)
   }
 
-  // const leavingArchivers = safeParse<State.ArchiverNodeState[]>(
-  //   [],
-  //   cycle.leavingArchivers,
-  //   `Error processing cycle ${cycle.counter}: failed to parse joinedArchivers`
-  // )
   for (let leavingArchiver of leavingArchivers) {
     State.removeActiveArchiver(leavingArchiver.publicKey)
   }

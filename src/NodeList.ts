@@ -3,7 +3,8 @@ import * as Crypto from './Crypto'
 import * as State from './State'
 import * as P2P from './P2P'
 import * as Data from './Data/Data'
-import * as Utils from './Utils'
+import * as Utils from './shared-functions/Utils'
+import * as P2PUtils from './shared-functions/P2PUtils'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
 import { NodeStatus } from './shared-types/Cycle/P2PTypes'
@@ -172,7 +173,7 @@ export async function getActiveListFromArchivers(activeArchivers: State.Archiver
     )
     if(response.nodeList) return response.nodeList.sort((a: any, b: any) => a.publicKey - b.publicKey)
   }
-  let nodeList: any = await Utils.robustQuery(
+  let nodeList: any = await P2PUtils.robustQuery(
     activeArchivers,
     queryFn,
     isSameCyceInfo
