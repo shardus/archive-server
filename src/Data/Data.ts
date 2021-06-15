@@ -8,7 +8,7 @@ import * as Storage from '../Storage'
 import * as Cycles from './Cycles'
 import * as State from '../State'
 import * as P2P from '../P2P'
-import { Utils, P2PUtils, Changer, P2PTypes, ArchiversTypes ,StateTypes} from 'shardus-parser'
+import { Utils, P2PUtils, SyncUtils, Changer, P2PTypes, ArchiversTypes ,StateTypes} from 'shardus-parser'
 import * as Gossip from './Gossip'
 import { isDeepStrictEqual } from 'util'
 import { config, Config } from '../Config'
@@ -813,27 +813,27 @@ export async function getNewestCycleFromArchivers(activeArchivers: State.Archive
   return cycleInfo[0]
 }
 
-export function activeNodeCount(cycle: Cycle) {
-  return (
-    cycle.active +
-    cycle.activated.length -
-    cycle.apoptosized.length -
-    cycle.removed.length -
-    cycle.lost.length
-  )
-}
+// export function activeNodeCount(cycle: Cycle) {
+//   return (
+//     cycle.active +
+//     cycle.activated.length -
+//     cycle.apoptosized.length -
+//     cycle.removed.length -
+//     cycle.lost.length
+//   )
+// }
 
-export function totalNodeCount(cycle: Cycle) {
-  return (
-    cycle.syncing +
-    cycle.joinedConsensors.length +
-    cycle.active +
-    //    cycle.activated.length -      // don't count activated because it was already counted in syncing
-    cycle.apoptosized.length -
-    cycle.removed.length -
-    cycle.lost.length
-  )
-}
+// export function totalNodeCount(cycle: Cycle) {
+//   return (
+//     cycle.syncing +
+//     cycle.joinedConsensors.length +
+//     cycle.active +
+//     //    cycle.activated.length -      // don't count activated because it was already counted in syncing
+//     cycle.apoptosized.length -
+//     cycle.removed.length -
+//     cycle.lost.length
+//   )
+// }
 
 export function parseRecord (record: any): Changer.Change {
   // For all nodes described by activated, make an update to change their status to active
@@ -941,8 +941,8 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
       prepended++
 
       if (
-        squasher.final.updated.length >= activeNodeCount(cycleToSyncTo) &&
-        squasher.final.added.length >= totalNodeCount(cycleToSyncTo)
+        squasher.final.updated.length >= SyncUtils.activeNodeCount(cycleToSyncTo) &&
+        squasher.final.added.length >= SyncUtils.totalNodeCount(cycleToSyncTo)
       ) {
         break
       }
@@ -951,14 +951,14 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
     Logger.mainLogger.debug(
       `Got ${
         squasher.final.updated.length
-      } active nodes, need ${activeNodeCount(cycleToSyncTo)}`
+      } active nodes, need ${SyncUtils.activeNodeCount(cycleToSyncTo)}`
     )
     Logger.mainLogger.debug(
-      `Got ${squasher.final.added.length} total nodes, need ${totalNodeCount(
+      `Got ${squasher.final.added.length} total nodes, need ${SyncUtils.totalNodeCount(
         cycleToSyncTo
       )}`
     )
-    if (squasher.final.added.length < totalNodeCount(cycleToSyncTo))
+    if (squasher.final.added.length < SyncUtils.totalNodeCount(cycleToSyncTo))
       Logger.mainLogger.debug(
         'Short on nodes. Need to get more cycles. Cycle:' +
           cycleToSyncTo.counter
@@ -967,8 +967,8 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
     // If you weren't able to prepend any of the prevCycles, start over
     if (prepended < 1) throw new Error('Unable to prepend any previous cycles')
   } while (
-    squasher.final.updated.length < activeNodeCount(cycleToSyncTo) ||
-    squasher.final.added.length < totalNodeCount(cycleToSyncTo)
+    squasher.final.updated.length < SyncUtils.activeNodeCount(cycleToSyncTo) ||
+    squasher.final.added.length < SyncUtils.totalNodeCount(cycleToSyncTo)
   )
 
   applyNodeListChange(squasher.final)
