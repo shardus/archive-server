@@ -10,7 +10,7 @@ import * as P2P from './P2P'
 import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
-import { Utils, StateTypes, ArchiversTypes, P2PTypes} from 'shardus-parser'
+import { Utils, StateTypes, ArchiversTypes, P2PTypes, ParserLogger } from 'shardus-parser'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
 import * as Logger from './Logger'
 
@@ -41,6 +41,11 @@ async function start() {
   const baseDir = '.'
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)
+  // Shardus Parser Logger
+  // const logsName = 'archiver-logs/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}'
+  ParserLogger.logInit(logDir, 'shardus-parser-log')
+  ParserLogger.setAppLogger(Logger.mainLogger)
+
   // Initialize storage
   await Storage.initStorage()
 

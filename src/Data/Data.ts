@@ -813,28 +813,6 @@ export async function getNewestCycleFromArchivers(activeArchivers: State.Archive
   return cycleInfo[0]
 }
 
-// export function activeNodeCount(cycle: Cycle) {
-//   return (
-//     cycle.active +
-//     cycle.activated.length -
-//     cycle.apoptosized.length -
-//     cycle.removed.length -
-//     cycle.lost.length
-//   )
-// }
-
-// export function totalNodeCount(cycle: Cycle) {
-//   return (
-//     cycle.syncing +
-//     cycle.joinedConsensors.length +
-//     cycle.active +
-//     //    cycle.activated.length -      // don't count activated because it was already counted in syncing
-//     cycle.apoptosized.length -
-//     cycle.removed.length -
-//     cycle.lost.length
-//   )
-// }
-
 export function parseRecord (record: any): Changer.Change {
   // For all nodes described by activated, make an update to change their status to active
   const activated = record.activated.map((id: string) => ({
