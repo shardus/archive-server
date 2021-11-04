@@ -1,8 +1,8 @@
-import { join } from 'path'
+import {join} from 'path'
 import * as fastify from 'fastify'
 import * as fastifyCors from 'fastify-cors'
-import { Server, IncomingMessage, ServerResponse } from 'http'
-import { overrideDefaultConfig, config } from './Config'
+import {Server, IncomingMessage, ServerResponse} from 'http'
+import {overrideDefaultConfig, config} from './Config'
 import * as Crypto from './Crypto'
 import * as State from './State'
 import * as NodeList from './NodeList'
@@ -11,18 +11,19 @@ import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
-import { sendGossip, addHashesGossip } from './Data/Gossip'
+import {sendGossip, addHashesGossip} from './Data/Gossip'
 import * as Logger from './Logger'
-import { P2P as P2PTypes } from 'shardus-types'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
-import { Readable } from 'stream'
-import MemoryReporting, { memoryReportingInstance } from './profiler/memoryReporting'
-import NestedCounters, {
-    nestedCountersInstance,
-} from './profiler/nestedCounters'
-import Profiler, { profilerInstance } from './profiler/profiler'
-import Statistics from "./statistics";
+import {P2P as P2PTypes} from 'shardus-types'
+import {readFileSync} from 'fs'
+import {resolve} from 'path'
+import {Readable} from 'stream'
+import * as perf from 'shardus-perf-utils'
+import * as crypto from './Crypto'
+
+const Profiler = perf.default.Profiler
+const NestedCounters = perf.default.NestedCounters
+const MemoryReporting = perf.default.MemoryReporting
+const Statistics = perf.default.Statistics
 
 // Socket modules
 let io: SocketIO.Server
@@ -32,6 +33,11 @@ const file = join(process.cwd(), 'archiver-config.json')
 const env = process.env
 const args = process.argv
 let logDir: string
+
+export let nestedCountersInstance: any
+export let profilerInstance: any
+export let memoryReportingInstance: any
+export let statisticsInstance: any
 
 async function start() {
     overrideDefaultConfig(file, env, args)
@@ -53,6 +59,7 @@ async function start() {
     const baseDir = '.'
     logsConfig.dir = logDir
     Logger.initLogger(baseDir, logsConfig)
+
     // Initialize storage
     await Storage.initStorage(config)
 
@@ -61,7 +68,11 @@ async function start() {
 
     if (State.isFirst) {
         Logger.mainLogger.debug('We are first archiver. Starting archive-server')
-        io = startServer()
+        try {
+            io = startServer()
+        } catch (e) {
+            console.error('Unable to start server', e)
+        }
     } else {
         Logger.mainLogger.debug(
             'We are not first archiver. Syncing and starting archive-server'
@@ -71,30 +82,47 @@ async function start() {
 }
 
 function initProfiler(server: fastify.FastifyInstance) {
-    let memoryReporter = new MemoryReporting(server)
-    let nestedCounter = new NestedCounters(server)
-    let profiler = new Profiler(server)
-    let statistics = new Statistics(
+    nestedCountersInstance = new NestedCounters(crypto)
+    memoryReportingInstance = new MemoryReporting(
+        null,
+        statisticsInstance,
+        null,
+        null,
+        null
+    )
+    profilerInstance = new Profiler('consensor', config.ARCHIVER_PUBLIC_KEY, config.ARCHIVER_IP, config.ARCHIVER_PORT)
+    statisticsInstance = new Statistics(
         logDir,
         config.STATISTICS,
         {
-            counters: [
-            ],
-            watchers: {
-
-            },
+            counters: [],
+            watchers: {},
             timers: [],
             manualStats: ['cpuPercent'],
         },
         {}
     )
-    statistics.startSnapshots()
-    statistics.on('snapshot', memoryReportingInstance.updateCpuPercent)
+    memoryReportingInstance.setStatistics(statisticsInstance)
+    statisticsInstance.startSnapshots()
+    statisticsInstance.on('snapshot', memoryReportingInstance.updateCpuPercent)
 
     // ========== ENDPOINTS ==========
-    memoryReporter.registerEndpoints()
-    nestedCounter.registerEndpoints()
-    profiler.registerEndpoints()
+    try {
+        for (let route in profilerInstance.handlers) {
+            let handler = profilerInstance.handlers[route]
+            server.get(`/${route}`, handler)
+        }
+        for (let route in nestedCountersInstance.handlers) {
+            let handler = nestedCountersInstance.handlers[route]
+            server.get(`/${route}`, handler)
+        }
+        for (let route in memoryReportingInstance.handlers) {
+            let handler = memoryReportingInstance.handlers[route]
+            server.get(`/${route}`, handler)
+        }
+    } catch (e) {
+        console.error("Unable to register perf listeners", e)
+    }
 }
 
 async function syncAndStartServer() {
@@ -183,11 +211,9 @@ async function syncAndStartServer() {
 
 // Define all endpoints, all requests, and start REST server
 function startServer() {
-    const server: fastify.FastifyInstance<
-        Server,
+    const server: fastify.FastifyInstance<Server,
         IncomingMessage,
-        ServerResponse
-        > = fastify({
+        ServerResponse> = fastify({
         logger: false,
     })
 
@@ -214,115 +240,122 @@ function startServer() {
      * CZ adds AZ's join reqeuest to cycle zero and sets AZ as cycleRecipient
      */
     server.post('/nodelist', (request, reply) => {
-        profilerInstance.profileSectionStart('POST_nodelist')
-        nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
-        const signedFirstNodeInfo: P2P.FirstNodeInfo & Crypto.SignedMessage =
-            request.body
+        profilerInstance.profileSectionStart('post_nodelist')
+        nestedCountersInstance.countEvent('consensor', 'post_nodelist', 1)
+        try {
+            const signedFirstNodeInfo: P2P.FirstNodeInfo & Crypto.SignedMessage =
+                request.body
 
-        if (State.isFirst && NodeList.isEmpty()) {
-            try {
-                const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
-                if (!isSignatureValid) {
-                    Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
-                    return
+            if (State.isFirst && NodeList.isEmpty()) {
+                try {
+                    const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
+                    if (!isSignatureValid) {
+                        Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
+                        return
+                    }
+                } catch (e) {
+                    Logger.mainLogger.error(e)
                 }
-            } catch (e) {
-                Logger.mainLogger.error(e)
-            }
-            const ip = signedFirstNodeInfo.nodeInfo.externalIp
-            const port = signedFirstNodeInfo.nodeInfo.externalPort
-            const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
+                const ip = signedFirstNodeInfo.nodeInfo.externalIp
+                const port = signedFirstNodeInfo.nodeInfo.externalPort
+                const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
 
-            const firstNode: NodeList.ConsensusNodeInfo = {
-                ip,
-                port,
-                publicKey,
-            }
-
-            Data.initSocketClient(firstNode)
-
-            // Add first node to NodeList
-            NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
-
-            // Set first node as dataSender
-            Data.addDataSenders({
-                nodeInfo: firstNode,
-                types: [
-                    P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-                    P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-                ],
-                replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
-            })
-
-            const res = Crypto.sign<P2P.FirstNodeResponse>({
-                nodeList: NodeList.getList(),
-                joinRequest: P2P.createArchiverJoinRequest(),
-                dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-                    P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-                    Cycles.currentCycleCounter,
-                    publicKey
-                ),
-                dataRequestStateMetaData: Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
-                    P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-                    Cycles.lastProcessedMetaData,
-                    publicKey
-                ),
-            })
-
-            reply.send(res)
-        } else {
-            const cacheUpdatedTime = NodeList.cacheUpdatedTimes.get('/nodelist')
-            const realUpdatedTime = NodeList.realUpdatedTimes.get('/nodelist')
-            const cached = NodeList.cache.get('/nodelist')
-            if (
-                cached &&
-                cacheUpdatedTime &&
-                realUpdatedTime &&
-                cacheUpdatedTime > realUpdatedTime
-            ) {
-                // cache is hot, send cache
-
-                reply.send(cached)
-            } else {
-                // cache is cold, remake cache
-
-                let nodeList = NodeList.getActiveList()
-                // If we dont have any active nodes, send back the first node in our list
-                if (nodeList.length < 1) {
-                    nodeList = NodeList.getList().slice(0, 1)
+                const firstNode: NodeList.ConsensusNodeInfo = {
+                    ip,
+                    port,
+                    publicKey,
                 }
-                const res = Crypto.sign({
-                    nodeList: nodeList.sort((a: any, b: any) => (a.id > b.id ? 1 : -1)),
+
+                Data.initSocketClient(firstNode)
+
+                // Add first node to NodeList
+                NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
+
+                // Set first node as dataSender
+                Data.addDataSenders({
+                    nodeInfo: firstNode,
+                    types: [
+                        P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+                        P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+                    ],
+                    replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
                 })
 
-                // Update cache
-                if (NodeList.realUpdatedTimes.get('/nodelist') === undefined) {
-                    NodeList.realUpdatedTimes.set('/nodelist', 0)
-                }
-                NodeList.cache.set('/nodelist', res)
-                NodeList.cacheUpdatedTimes.set('/nodelist', Date.now())
+                const res = Crypto.sign<P2P.FirstNodeResponse>({
+                    nodeList: NodeList.getList(),
+                    joinRequest: P2P.createArchiverJoinRequest(),
+                    dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
+                        P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+                        Cycles.currentCycleCounter,
+                        publicKey
+                    ),
+                    dataRequestStateMetaData: Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
+                        P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+                        Cycles.lastProcessedMetaData,
+                        publicKey
+                    ),
+                })
 
                 reply.send(res)
+            } else {
+                const cacheUpdatedTime = NodeList.cacheUpdatedTimes.get('/nodelist')
+                const realUpdatedTime = NodeList.realUpdatedTimes.get('/nodelist')
+                const cached = NodeList.cache.get('/nodelist')
+                if (
+                    cached &&
+                    cacheUpdatedTime &&
+                    realUpdatedTime &&
+                    cacheUpdatedTime > realUpdatedTime
+                ) {
+                    // cache is hot, send cache
+
+                    reply.send(cached)
+                } else {
+                    // cache is cold, remake cache
+
+                    let nodeList = NodeList.getActiveList()
+                    // If we dont have any active nodes, send back the first node in our list
+                    if (nodeList.length < 1) {
+                        nodeList = NodeList.getList().slice(0, 1)
+                    }
+                    const res = Crypto.sign({
+                        nodeList: nodeList.sort((a: any, b: any) => (a.id > b.id ? 1 : -1)),
+                    })
+
+                    // Update cache
+                    if (NodeList.realUpdatedTimes.get('/nodelist') === undefined) {
+                        NodeList.realUpdatedTimes.set('/nodelist', 0)
+                    }
+                    NodeList.cache.set('/nodelist', res)
+                    NodeList.cacheUpdatedTimes.set('/nodelist', Date.now())
+
+                    reply.send(res)
+                }
             }
+        } finally {
+            profilerInstance.profileSectionEnd('post_nodelist')
         }
-        profilerInstance.profileSectionEnd('POST_nodelist')
     })
 
     server.get('/nodelist', (_request, reply) => {
-        profilerInstance.profileSectionStart('GET_nodelist')
-        nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
-        let nodeList = NodeList.getActiveList()
-        if (nodeList.length < 1) {
-            nodeList = NodeList.getList().slice(0, 1)
+        profilerInstance.profileSectionStart('get_nodelist')
+        nestedCountersInstance.countEvent('consensor', 'get_nodelist')
+        try {
+            let nodeList = NodeList.getActiveList()
+            if (nodeList.length < 1) {
+                nodeList = NodeList.getList().slice(0, 1)
+            }
+            let sortedNodeList = [...nodeList].sort((a: any, b: any) =>
+                a.id > b.id ? 1 : -1
+            )
+            const res = Crypto.sign({
+                nodeList: sortedNodeList,
+            })
+            reply.send(res)
+        } finally {
+            profilerInstance.profileSectionEnd('get_nodelist')
         }
-        let sortedNodeList = [...nodeList].sort((a: any, b: any) =>
-            a.id > b.id ? 1 : -1
-        )
-        const res = Crypto.sign({
-            nodeList: sortedNodeList,
-        })
-        profilerInstance.profileSectionEnd('GET_nodelist')
-        reply.send(res)
+
     })
 
     server.get('/full-nodelist', (_request, reply) => {
@@ -336,17 +369,17 @@ function startServer() {
     })
 
     server.get('/full-archive', async (_request, reply) => {
-        let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+        let err = Utils.validateTypes(_request.query, {start: 's', end: 's'})
         if (err) {
-            reply.send(Crypto.sign({ success: false, error: err }))
+            reply.send(Crypto.sign({success: false, error: err}))
             return
         }
-        let { start, end } = _request.query
+        let {start, end} = _request.query
         let from = parseInt(start)
         let to = parseInt(end)
         if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
             reply.send(
-                Crypto.sign({ success: false, error: `Invalid start and end counters` })
+                Crypto.sign({success: false, error: `Invalid start and end counters`})
             )
             return
         }
@@ -360,7 +393,7 @@ function startServer() {
             )
             return
         }
-        let archivedCycles = []
+        let archivedCycles: any[]
         archivedCycles = await Storage.queryAllArchivedCyclesBetween(from, to)
         const res = Crypto.sign({
             archivedCycles,
@@ -369,40 +402,47 @@ function startServer() {
     })
 
     server.get('/lost', async (_request, reply) => {
-        let { start, end } = _request.query
-        if (!start) start = 0
-        if (!end) end = Cycles.currentCycleCounter
+        profilerInstance.profileSectionStart('get_lost')
+        try {
+            let {start, end} = _request.query
+            if (!start) start = 0
+            if (!end) end = Cycles.currentCycleCounter
 
-        let from = parseInt(start)
-        let to = parseInt(end)
-        if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-            reply.send(
-                Crypto.sign({ success: false, error: `Invalid start and end counters` })
-            )
-            return
+            let from = parseInt(start)
+            let to = parseInt(end)
+            if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+                reply.send(
+                    Crypto.sign({success: false, error: `Invalid start and end counters`})
+                )
+                return
+            }
+            let lostNodes = []
+            lostNodes = Cycles.getLostNodes(from, to)
+            const res = Crypto.sign({
+                lostNodes,
+            })
+            reply.send(res)
+
+        } finally {
+            profilerInstance.profileSectionEnd('get_lost')
         }
-        let lostNodes = []
-        lostNodes = Cycles.getLostNodes(from, to)
-        const res = Crypto.sign({
-            lostNodes,
-        })
-        reply.send(res)
+
     })
 
     server.get('/full-archive/:count', async (_request, reply) => {
-        let err = Utils.validateTypes(_request.params, { count: 's' })
+        let err = Utils.validateTypes(_request.params, {count: 's'})
         if (err) {
-            reply.send(Crypto.sign({ success: false, error: err }))
+            reply.send(Crypto.sign({success: false, error: err}))
             return
         }
 
         let count: number = parseInt(_request.params.count)
         if (count <= 0 || Number.isNaN(count)) {
-            reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+            reply.send(Crypto.sign({success: false, error: `Invalid count`}))
             return
         }
         if (count > 100) {
-            reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+            reply.send(Crypto.sign({success: false, error: `Max count is 100`}))
             return
         }
         const archivedCycles = await Storage.queryAllArchivedCycles(count)
@@ -422,7 +462,7 @@ function startServer() {
     })
 
     server.get('/cycleinfo', async (_request, reply) => {
-        let { start, end, download } = _request.query
+        let {start, end, download} = _request.query
         if (!start) start = 0
         if (!end) end = Cycles.currentCycleCounter
         let from = parseInt(start)
@@ -432,7 +472,7 @@ function startServer() {
         if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
             Logger.mainLogger.error(`Invalid start and end counters`)
             reply.send(
-                Crypto.sign({ success: false, error: `Invalid start and end counters` })
+                Crypto.sign({success: false, error: `Invalid start and end counters`})
             )
             return
         }
@@ -458,14 +498,14 @@ function startServer() {
     })
 
     server.get('/cycleinfo/:count', async (_request, reply) => {
-        let err = Utils.validateTypes(_request.params, { count: 's' })
+        let err = Utils.validateTypes(_request.params, {count: 's'})
         if (err) {
-            reply.send(Crypto.sign({ success: false, error: err }))
+            reply.send(Crypto.sign({success: false, error: err}))
             return
         }
         let count: number = parseInt(_request.params.count)
         if (count <= 0 || Number.isNaN(count)) {
-            reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+            reply.send(Crypto.sign({success: false, error: `Invalid count`}))
             return
         }
         if (count > 100) count = 100 // return max 100 cycles
@@ -478,15 +518,30 @@ function startServer() {
     })
 
     server.post('/gossip-hashes', async (_request, reply) => {
-        let gossipMessage = _request.body
-        Logger.mainLogger.debug('Gossip received', JSON.stringify(gossipMessage))
-        addHashesGossip(gossipMessage.sender, gossipMessage.data)
-        const res = Crypto.sign({
-            success: true,
-        })
-        reply.send(res)
+        profilerInstance.profileSectionStart('post_gossip_hashes')
+        try {
+            let gossipMessage = _request.body
+            Logger.mainLogger.debug('Gossip received', JSON.stringify(gossipMessage))
+            addHashesGossip(gossipMessage.sender, gossipMessage.data)
+            const res = Crypto.sign({
+                success: true,
+            })
+            reply.send(res)
+        } finally {
+            profilerInstance.profileSectionEnd('post_gossip_hashes')
+        }
     })
 
+    server.get('/archiverlist', async (_request, reply) => {
+        profilerInstance.profileSectionStart('archiverlist')
+        try {
+            reply.send({
+                archivers: State.activeArchivers
+            })
+        } finally {
+            profilerInstance.profileSectionEnd('archiverlist')
+        }
+    })
     // [TODO] Remove this before production
     // server.get('/exit', (_request, reply) => {
     //   reply.send('Shutting down...')

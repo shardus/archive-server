@@ -20,8 +20,7 @@ import {config} from '../Config'
 import {BaseModel} from 'tydb'
 import {P2P as P2PTypes, StateManager} from 'shardus-types'
 import * as Logger from '../Logger'
-import {nestedCountersInstance} from "../profiler/nestedCounters";
-import {profilerInstance} from "../profiler/profiler";
+import {profilerInstance, nestedCountersInstance, memoryReportingInstance} from '../server'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -46,16 +45,19 @@ interface DataKeepAlive {
 
 export interface ReceiptMapQueryResponse {
     success: boolean
-    data: { [key: number]: StateManager.StateManagerTypes.ReceiptMapResult[]}
+    data: { [key: number]: StateManager.StateManagerTypes.ReceiptMapResult[] }
 }
+
 export interface StatsClumpQueryResponse {
     success: boolean
-    data: { [key: number]: StateManager.StateManagerTypes.StatsClump}
+    data: { [key: number]: StateManager.StateManagerTypes.StatsClump }
 }
+
 export interface SummaryBlobQueryResponse {
     success: boolean
-    data: { [key: number]: StateManager.StateManagerTypes.SummaryBlob[]}
+    data: { [key: number]: StateManager.StateManagerTypes.SummaryBlob[] }
 }
+
 export interface DataQueryResponse {
     success: boolean
     data: any
@@ -98,7 +100,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     })
 
 
-    socketClient.on('DATA', (newData : DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage ) => {
+    socketClient.on('DATA', (newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) => {
         if (!newData || !newData.responses) return
         if (newData.recipient !== State.getNodeInfo().publicKey) {
             Logger.mainLogger.debug('This data is not meant for this archiver')
@@ -112,7 +114,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             return
         }
 
-        if(newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New DATA', newData.responses)
+        if (newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New DATA', newData.responses)
         else Logger.mainLogger.debug('State metadata is empty')
 
         currentDataSender = newData.publicKey
@@ -176,6 +178,7 @@ export function createQueryRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
         recipientPk
     )
 }
+
 // Vars to track Data senders
 
 export interface DataSender {
@@ -185,10 +188,8 @@ export interface DataSender {
     replaceTimeout?: NodeJS.Timeout | null
 }
 
-export const dataSenders: Map<
-    NodeList.ConsensusNodeInfo['publicKey'],
-    DataSender
-    > = new Map()
+export const dataSenders: Map<NodeList.ConsensusNodeInfo['publicKey'],
+    DataSender> = new Map()
 
 const timeoutPadding = 1000
 
@@ -293,7 +294,7 @@ export function addDataSenders(...senders: DataSender[]) {
     }
 }
 
-function removeDataSenders (
+function removeDataSenders(
     publicKey: NodeList.ConsensusNodeInfo['publicKey']
 ) {
     Logger.mainLogger.debug(`${new Date()}: Removing data sender ${publicKey}`)
@@ -327,7 +328,7 @@ function selectNewDataSender() {
     const activeList = NodeList.getActiveList()
     const newSender = activeList[Math.floor(Math.random() * activeList.length)]
     Logger.mainLogger.debug('New data sender is selected', newSender)
-    if(newSender) {
+    if (newSender) {
         unsubscribeDataSender()
         initSocketClient(newSender)
     }
@@ -338,7 +339,7 @@ export function sendDataRequest(
     sender: DataSender,
     dataRequest: any
 ) {
-    const taggedDataRequest = Crypto.tag(dataRequest,  sender.nodeInfo.publicKey)
+    const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
     Logger.mainLogger.info('Sending tagged data request to consensor.', sender)
     emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
@@ -353,10 +354,10 @@ function calcIncomingTimes(record: Cycle) {
     const startQ3 = start + 2 * quarterDuration
     const startQ4 = start + 3 * quarterDuration
     const end = start + cycleDuration
-    return { quarterDuration, startQ1, startQ2, startQ3, startQ4, end }
+    return {quarterDuration, startQ1, startQ2, startQ3, startQ4, end}
 }
 
-export async function joinNetwork (
+export async function joinNetwork(
     nodeList: NodeList.ConsensusNodeInfo[],
     isFirstTime: boolean
 ): Promise<boolean> {
@@ -371,7 +372,7 @@ export async function joinNetwork (
     const latestCycle = await getNewestCycleFromConsensors(nodeList)
 
     // Figure out when Q1 is from the latestCycle
-    const { startQ1 } = calcIncomingTimes(latestCycle)
+    const {startQ1} = calcIncomingTimes(latestCycle)
     let request = P2P.createArchiverJoinRequest()
     let shuffledNodes = [...nodeList]
     Utils.shuffleArray(shuffledNodes)
@@ -411,7 +412,7 @@ export async function submitJoin(
     }
 }
 
-export function sendLeaveRequest (
+export function sendLeaveRequest(
     nodeInfo: NodeList.ConsensusNodeInfo,
     cycle: Cycles.Cycle
 ) {
@@ -423,7 +424,7 @@ export function sendLeaveRequest (
 }
 
 
-export async function getCycleDuration () {
+export async function getCycleDuration() {
     const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
     let response: any = await P2P.getJson(
         `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`)
@@ -433,7 +434,7 @@ export async function getCycleDuration () {
 }
 
 export async function getNewestCycleFromConsensors(activeNodes: NodeList.ConsensusNodeInfo[]): Promise<Cycle> {
-    function isSameCyceInfo (info1: any, info2: any) {
+    function isSameCyceInfo(info1: any, info2: any) {
         const cm1 = Utils.deepCopy(info1)
         const cm2 = Utils.deepCopy(info2)
         delete cm1.currentTime
@@ -445,7 +446,7 @@ export async function getNewestCycleFromConsensors(activeNodes: NodeList.Consens
         const response: any = await P2P.getJson(
             `http://${node.ip}:${node.port}/sync-newest-cycle`
         )
-        if(response.newestCycle) return response.newestCycle
+        if (response.newestCycle) return response.newestCycle
     }
     let newestCycle: any = await Utils.robustQuery(
         activeNodes,
@@ -455,7 +456,7 @@ export async function getNewestCycleFromConsensors(activeNodes: NodeList.Consens
     return newestCycle[0]
 }
 
-export function checkJoinStatus (): Promise<boolean> {
+export function checkJoinStatus(): Promise<boolean> {
     Logger.mainLogger.debug('Checking join status')
     const ourNodeInfo = State.getNodeInfo()
     const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
@@ -496,8 +497,7 @@ async function sendDataQuery(
     validateFn: any
 ) {
     const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
-    let result = await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
-    return result
+    return await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
 }
 
 async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) {
@@ -564,7 +564,7 @@ async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTyp
     }
 }
 
-export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTypes.StateMetaData[]) {
+export async function processStateMetaData(STATE_METADATA: P2PTypes.SnapshotTypes.StateMetaData[]) {
     if (!STATE_METADATA) {
         Logger.mainLogger.error(
             'Invalid STATE_METADATA provided to processStateMetaData function',
@@ -625,26 +625,32 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
                 let coveredPartitions = new Map()
                 let downloadedReceiptMaps = new Map()
 
-                let shouldProcessReceipt = (cycle: number,partition: number) => {
+                let shouldProcessReceipt = (cycle: number, partition: number) => {
                     if (cycle === receiptHashesForCycle.counter - 1)
                         if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
                     return false
                 }
                 const cycleActiveNodesSize = parentCycle.active + parentCycle.activated.length - parentCycle.removed.length;
-                while(!isDownloadSuccess && sleepCount < 20) {
+                while (!isDownloadSuccess && sleepCount < 20) {
                     let randomConsensor = NodeList.getRandomActiveNode()
                     const queryRequest = createQueryRequest(
                         'RECEIPT_MAP',
                         receiptHashesForCycle.counter - 1,
                         randomConsensor.publicKey
                     )
-                    let { success, completed, failed, covered, blobs } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessReceipt)
+                    let {
+                        success,
+                        completed,
+                        failed,
+                        covered,
+                        blobs
+                    } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessReceipt)
                     if (success) {
                         for (let partition of failed) {
                             failedPartitions.set(partition, true)
                         }
                         for (let partition of completed) {
-                            if(failedPartitions.has(partition)) failedPartitions.delete(partition)
+                            if (failedPartitions.has(partition)) failedPartitions.delete(partition)
                         }
                         for (let partition of covered) {
                             coveredPartitions.set(partition, true)
@@ -709,26 +715,32 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
                 let coveredPartitions = new Map()
                 let downloadedBlobs = new Map()
 
-                let shouldProcessBlob = (cycle: number,partition: number) => {
+                let shouldProcessBlob = (cycle: number, partition: number) => {
                     if (cycle === summaryHashesForCycle.counter - 1)
                         if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
                     return false
                 }
 
-                while(!isDownloadSuccess && sleepCount < 20) {
+                while (!isDownloadSuccess && sleepCount < 20) {
                     let randomConsensor = NodeList.getRandomActiveNode()
                     const queryRequest = createQueryRequest(
                         'SUMMARY_BLOB',
                         summaryHashesForCycle.counter - 1,
                         randomConsensor.publicKey
                     )
-                    let { success, completed, failed, covered, blobs } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessBlob)
+                    let {
+                        success,
+                        completed,
+                        failed,
+                        covered,
+                        blobs
+                    } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessBlob)
                     if (success) {
                         for (let partition of failed) {
                             failedPartitions.set(partition, true)
                         }
                         for (let partition of completed) {
-                            if(failedPartitions.has(partition)) failedPartitions.delete(partition)
+                            if (failedPartitions.has(partition)) failedPartitions.delete(partition)
                         }
                         for (let partition of covered) {
                             coveredPartitions.set(partition, true)
@@ -763,8 +775,8 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
 }
 
 
-export async function fetchStateHashes (archivers: any) {
-    function _isSameStateHashes (info1: any, info2: any ) {
+export async function fetchStateHashes(archivers: any) {
+    function _isSameStateHashes(info1: any, info2: any) {
         const cm1 = Utils.deepCopy(info1)
         const cm2 = Utils.deepCopy(info2)
         delete cm1.currentTime
@@ -779,7 +791,7 @@ export async function fetchStateHashes (archivers: any) {
         )
         return response.stateHashes
     }
-    const stateHashes:any = await Utils.robustQuery(
+    const stateHashes: any = await Utils.robustQuery(
         archivers,
         queryFn,
         _isSameStateHashes
@@ -787,8 +799,8 @@ export async function fetchStateHashes (archivers: any) {
     return stateHashes[0]
 }
 
-export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[], start:number, end: number): Promise<any> {
-    function isSameCyceInfo (info1: any, info2: any) {
+export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[], start: number, end: number): Promise<any> {
+    function isSameCyceInfo(info1: any, info2: any) {
         const cm1 = Utils.deepCopy(info1)
         const cm2 = Utils.deepCopy(info2)
         delete cm1.currentTime
@@ -803,12 +815,12 @@ export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[
         )
         return response.cycleInfo
     }
-    const { result } = await Utils.sequentialQuery(activeArchivers, queryFn)
+    const {result} = await Utils.sequentialQuery(activeArchivers, queryFn)
     return result
 }
 
 export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
-    function isSameCyceInfo (info1: any, info2: any) {
+    function isSameCyceInfo(info1: any, info2: any) {
         const cm1 = Utils.deepCopy(info1)
         const cm2 = Utils.deepCopy(info2)
         delete cm1.currentTime
@@ -890,7 +902,7 @@ export function reversed<T>(thing: Iterable<T>) {
             const done = i < 0
             const value = done ? undefined : arr[i]
             i--
-            return { value, done }
+            return {value, done}
         },
     }
     return {
@@ -903,7 +915,8 @@ export class ChangeSquasher {
     removedIds: Set<Node['id']>
     seenUpdates: Map<Update['id'], Update>
     addedIds: Set<Node['id']>
-    constructor () {
+
+    constructor() {
         this.final = {
             added: [],
             removed: [],
@@ -914,7 +927,7 @@ export class ChangeSquasher {
         this.seenUpdates = new Map()
     }
 
-    addChange (change: Change) {
+    addChange(change: Change) {
         for (const id of change.removed) {
             // Ignore if id is already removed
             if (this.removedIds.has(id)) continue
@@ -952,7 +965,7 @@ export class ChangeSquasher {
     }
 }
 
-export function parseRecord (record: any): Change {
+export function parseRecord(record: any): Change {
     // For all nodes described by activated, make an update to change their status to active
     const activated = record.activated.map((id: string) => ({
         id,
@@ -994,11 +1007,10 @@ export function parseRecord (record: any): Change {
     }
 }
 
-export function parse (record: any): Change {
-    const changes = parseRecord(record)
+export function parse(record: any): Change {
     // const mergedChange = deepmerge.all<Change>(changes)
     // return mergedChange
-    return changes
+    return parseRecord(record)
 }
 
 function applyNodeListChange(change: Change) {
@@ -1017,7 +1029,7 @@ function applyNodeListChange(change: Change) {
     }
 }
 
-export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNodeInfo[]) {
+export async function syncCyclesAndNodeList(activeArchivers: State.ArchiverNodeInfo[]) {
     // Get the networks newest cycle as the anchor point for sync
     Logger.mainLogger.debug('Getting newest cycle...')
     const [cycleToSyncTo] = await getNewestCycleFromArchivers(activeArchivers)
@@ -1048,7 +1060,7 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
         let prepended = 0
         for (const prevCycle of prevCycles) {
             // Stop prepending prevCycles if one of them is invalid
-            if (validateCycle(prevCycle, CycleChain[0]) === false) {
+            if (!validateCycle(prevCycle, CycleChain[0])) {
                 Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
                 break
             }
@@ -1103,7 +1115,7 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
 
     // Download old cycle Records
     let endCycle = CycleChain[0].counter - 1;
-    if (endCycle > 0){
+    if (endCycle > 0) {
         Logger.mainLogger.debug(`Downloading old cycles from cycles ${endCycle} to cycle 0!`)
     }
     let savedCycleRecord = CycleChain[0];
@@ -1119,7 +1131,7 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
         // Add prevCycles to our cycle chain
         for (const prevCycle of prevCycles) {
             // Stop saving prevCycles if one of them is invalid
-            if (validateCycle(prevCycle, savedCycleRecord) === false) {
+            if (!validateCycle(prevCycle, savedCycleRecord)) {
                 Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
                 Logger.mainLogger.debug('fail', prevCycle, savedCycleRecord)
                 break
@@ -1172,7 +1184,7 @@ async function downloadArchivedCycles(archiver: State.ArchiverNodeInfo, cycleToS
     return collector
 }
 
-export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo[]) {
+export async function syncStateMetaData(activeArchivers: State.ArchiverNodeInfo[]) {
     const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
     let allCycleRecords = await Storage.queryAllCycleRecords()
     let lastCycleCounter = allCycleRecords[0].counter
@@ -1268,7 +1280,7 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
         }
         if (isDataSynced && isReceiptSynced && isSummarySynced) {
             Logger.mainLogger.debug(`Successfully synced statemetadata for counter ${counter}`)
-            if(counter > Cycles.lastProcessedMetaData) {
+            if (counter > Cycles.lastProcessedMetaData) {
                 Cycles.setLastProcessedMetaDataCounter(counter)
             }
         }
@@ -1290,7 +1302,7 @@ const calculateNetworkHash = (data: object): string => {
 
 export type QueryDataResponse = ReceiptMapQueryResponse | StatsClumpQueryResponse
 
-async function queryDataFromNode (
+async function queryDataFromNode(
     consensorNode: NodeList.ConsensusNodeInfo,
     dataQuery: any,
     validateFn: any
@@ -1299,7 +1311,7 @@ async function queryDataFromNode (
         ...dataQuery,
         nodeInfo: State.getNodeInfo(),
     }
-    let result: any = { success: false, completed: []}
+    let result: any = {success: false, completed: []}
     try {
         let response = await P2P.postJson(
             `http://${consensorNode.ip}:${consensorNode.port}/querydata`,
@@ -1317,14 +1329,14 @@ async function queryDataFromNode (
             // }
         }
         return result
-    } catch(e) {
+    } catch (e) {
         Logger.mainLogger.error(e)
         Logger.mainLogger.error(`Unable to query complete querying ${request.type} from node`, consensorNode)
         return result
     }
 }
 
-async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
+async function validateAndStoreReceiptMaps(receiptMapResultsForCycles: {
     [key: number]: StateManager.StateManagerTypes.ReceiptMapResult[]
 }, validateFn: any) {
     let completed: number[] = []
@@ -1335,7 +1347,7 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
         let receiptMapResults: StateManager.StateManagerTypes.ReceiptMapResult[] =
             receiptMapResultsForCycles[counter]
         for (let partitionBlock of receiptMapResults) {
-            let { cycle, partition } = partitionBlock
+            let {cycle, partition} = partitionBlock
             if (validateFn) {
                 let shouldProcess = validateFn(cycle, partition)
                 if (!shouldProcess) {
@@ -1368,7 +1380,7 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
     }
 }
 
-async function validateAndStoreSummaryBlobs (
+async function validateAndStoreSummaryBlobs(
     statsClumpForCycles: StateManager.StateManagerTypes.StatsClump[],
     validateFn: any
 ) {
@@ -1378,7 +1390,7 @@ async function validateAndStoreSummaryBlobs (
     let blobs: any = {}
 
     for (let statsClump of statsClumpForCycles) {
-        let { cycle, dataStats, txStats, covered } = statsClump
+        let {cycle, dataStats, txStats, covered} = statsClump
         for (let partition of covered) {
             if (validateFn) {
                 let shouldProcess = validateFn(cycle, partition)

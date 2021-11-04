@@ -6,8 +6,10 @@ import * as P2P from '../P2P'
 import { config, Config } from '../Config'
 import * as Logger from '../Logger'
 import { P2P as P2PTypes} from 'shardus-types'
+import { profilerInstance, nestedCountersInstance, memoryReportingInstance} from '../server'
 
 let gossipCollector = new Map()
+let processedCounters = new Map()
 
 export async function sendGossip (type: string, payload: any) {
   let archivers: State.ArchiverNodeInfo[] = [...State.activeArchivers]
@@ -113,7 +115,7 @@ export function addHashesGossip (
   let totalGossip = gossipCollector.get(counter)
   if (
     totalGossip &&
-    Object.keys(totalGossip).length > 0.5 * State.activeArchivers.length
+    Object.keys(totalGossip).length > 0.3 * State.activeArchivers.length
   ) {
     setTimeout(() => {
       processGossip(counter)
@@ -123,50 +125,65 @@ export function addHashesGossip (
 }
 
 function processGossip(counter: number) {
-  Logger.mainLogger.debug('Processing gossips for counter', counter, gossipCollector.get(counter))
-  let gossips = gossipCollector.get(counter)
-  if (!gossips) {
-    return
-  }
-  let ourHashes = Data.StateMetaDataMap.get(counter)
-  let gossipCounter: any = {}
-  for (let sender in gossips) {
-    let hashedGossip = Crypto.hashObj(gossips[sender])
-    if(!gossipCounter[hashedGossip]) {
-      gossipCounter[hashedGossip] = {
-        count: 1,
-        gossip: gossips[sender]
-      }
-      // To count our StateMetaData also
-      if (hashedGossip === Crypto.hashObj(ourHashes)) {
-        gossipCounter[hashedGossip].count += 1
-      }
-    } else {
-      gossipCounter[hashedGossip].count += 1
+    if (processedCounters.has(counter)) {
+        Logger.mainLogger.info('We have already processed gossip for this counter', counter)
+        return
     }
-  }
-  let gossipWithHighestCount: P2PTypes.SnapshotTypes.StateMetaData[] = []
-  let highestCount = 0
-  let hashWithHighestCounter: any
-  for (let key in gossipCounter) {
-    if (gossipCounter[key].count > highestCount) {
-      gossipWithHighestCount.push(gossipCounter[key].gossip)
-      hashWithHighestCounter = key
-      highestCount = gossipCounter[key].count 
+    profilerInstance.profileSectionStart('process_gossip')
+    try {
+        Logger.mainLogger.debug('Processing gossips for counter', counter, gossipCollector.get(counter))
+        let gossips = gossipCollector.get(counter)
+        if (!gossips) {
+            return
+        }
+        let ourHashes = Data.StateMetaDataMap.get(counter)
+        let gossipCounter: any = {}
+        for (let sender in gossips) {
+            let hashedGossip = Crypto.hashObj(gossips[sender])
+            if(!gossipCounter[hashedGossip]) {
+                gossipCounter[hashedGossip] = {
+                    count: 1,
+                    gossip: gossips[sender]
+                }
+                // To count our StateMetaData also
+                if (hashedGossip === Crypto.hashObj(ourHashes)) {
+                    gossipCounter[hashedGossip].count += 1
+                }
+            } else {
+                gossipCounter[hashedGossip].count += 1
+            }
+        }
+        let gossipWithHighestCount: P2PTypes.SnapshotTypes.StateMetaData[] = []
+        let highestCount = 0
+        let hashWithHighestCounter: any
+        for (let key in gossipCounter) {
+            if (gossipCounter[key].count > highestCount) {
+                gossipWithHighestCount.push(gossipCounter[key].gossip)
+                hashWithHighestCounter = key
+                highestCount = gossipCounter[key].count
+            }
+        }
+        Logger.mainLogger.debug('Gossip with highest count:', JSON.stringify(gossipWithHighestCount))
+
+        if (!ourHashes) {
+            Logger.mainLogger.error(`Unable to find our stored statemetadata hashes for counter ${counter}`)
+            return
+        }
+        if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
+            if (gossipWithHighestCount.length === 0) {
+                Logger.mainLogger.error('Unable to find gossip with highest count.')
+                return
+            }
+            nestedCountersInstance.countEvent('archiver', 'different_archiver_hashes')
+            Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')
+            Data.processStateMetaData(gossipWithHighestCount)
+            Data.replaceDataSender(Data.currentDataSender)
+        } else {
+            nestedCountersInstance.countEvent('archiver', 'same_archiver_hashes')
+            Logger.mainLogger.info(`Our hash and other archivers' hashes are the same. No need to change data sender.`)
+        }
+    } finally {
+        processedCounters.set(counter, true)
+        profilerInstance.profileSectionEnd('process_gossip')
     }
-  }
-  
-  if (!ourHashes) {
-    Logger.mainLogger.error(`Unable to find our stored statemetadata hashes for counter ${counter}`)
-    return
-  }
-  if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
-    if (gossipWithHighestCount.length === 0) {
-      return
-    }
-    Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')
-    Logger.mainLogger.debug('gossipWithHighestCount', gossipWithHighestCount[0].summaryHashes)
-    Data.processStateMetaData(gossipWithHighestCount)
-    Data.replaceDataSender(Data.currentDataSender)
-  }
 }
