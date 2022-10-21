@@ -26,7 +26,14 @@ const objKeys =
   }) || Object.keys
 
 export const stringifyReduce = (val: any, isArrayProp?: boolean): any => {
-  let i, max, str, keys, key, propVal, toStr
+  let i: number
+  let max: number
+  let str: string
+  let keys: string | any[]
+  let key: string | number
+  let propVal: string
+  let toStr: string
+
   if (val === true) {
     return 'true'
   }
@@ -90,38 +97,4 @@ export const stringifyReduce = (val: any, isArrayProp?: boolean): any => {
     default:
       return isFinite(val) ? val : null
   }
-}
-
-export const replacer = (key: any, value: any) => {
-  const originalObject = value // this[key]
-  if (originalObject instanceof Map) {
-    return {
-      dataType: 'stringifyReduce_map_2_array',
-      value: Array.from(originalObject.entries()), // or with spread: value: [...originalObject]
-    }
-  } else {
-    return value
-  }
-}
-
-export const reviver = (key: any, value: any) => {
-  if (typeof value === 'object' && value !== null) {
-    if (value.dataType === 'stringifyReduce_map_2_array') {
-      return new Map(value.value)
-    }
-  }
-  return value
-}
-
-export const reviverExpander = (key: any, value: any) => {
-  if (typeof value === 'object' && value !== null) {
-    if (value.dataType === 'stringifyReduce_map_2_array') {
-      return new Map(value.value)
-    }
-  }
-  if (typeof value === 'string' && value.length === 10 && value[4] === 'x') {
-    let res = value.slice(0, 4) + '0'.repeat(55) + value.slice(5, 5 + 5)
-    return res
-  }
-  return value
 }

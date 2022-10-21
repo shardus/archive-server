@@ -71,7 +71,7 @@ export async function queryReceiptByReceiptId(receiptId: string) {
   }
 }
 
-export async function queryLatestReceipts(count) {
+export async function queryLatestReceipts(count: number) {
   try {
     const sql = `SELECT * FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count ? count : 100}`
     const receipts: any = await db.all(sql)

@@ -48,7 +48,7 @@ export async function bulkInsertAccounts(accounts: AccountCopy[]) {
   }
 }
 
-export async function updateAccount(accountId: string, account: AccountCopy) {
+export async function updateAccount(account: AccountCopy) {
   try {
     const sql = `UPDATE accounts SET cycleNumber = $cycleNumber, timestamp = $timestamp, data = $data, hash = $hash WHERE accountId = $accountId `
     await db.run(sql, {
@@ -81,7 +81,7 @@ export async function queryAccountByAccountId(accountId: string) {
   }
 }
 
-export async function queryLatestAccounts(count) {
+export async function queryLatestAccounts(count: number) {
   try {
     const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
       count ? count : 100

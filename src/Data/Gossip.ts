@@ -1,9 +1,8 @@
-import fastify = require('fastify')
 import * as Crypto from '../Crypto'
 import * as Data from './Data'
 import * as State from '../State'
 import * as P2P from '../P2P'
-import { config, Config } from '../Config'
+import { config } from '../Config'
 import * as Logger from '../Logger'
 import { P2P as P2PTypes } from '@shardus/types'
 
@@ -37,18 +36,16 @@ export async function sendGossip(type: string, payload: any) {
         recipients.map((node) => node.ip + ':' + node.port + `/gossip-${type}`)
       )}`
     )
-    await tell(recipients, `gossip-${type}`, gossipPayload, true)
+    await tell(recipients, `gossip-${type}`, gossipPayload)
   } catch (ex) {
     Logger.mainLogger.debug(ex)
     Logger.mainLogger.debug('Fail to gossip')
   }
 }
 
-async function tell(nodes: State.ArchiverNodeInfo[], route: string, message: any, logged = false) {
-  let InternalTellCounter = 0
+async function tell(nodes: State.ArchiverNodeInfo[], route: string, message: any) {
   const promises = []
   for (const node of nodes) {
-    InternalTellCounter++
     const url = `http://${node.ip}:${node.port}/${route}`
     try {
       const promise = P2P.postJson(url, message)

@@ -1,13 +1,11 @@
-import { Cycle, CycleChain } from './Data/Cycles'
+import { CycleChain } from './Data/Cycles'
 import { Config } from './Config'
 import * as Data from './Data/Data'
-import { socketServer } from './Data/Data'
-import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
-import * as Crypto from './Crypto'
+import { Database, FS_Persistence_Adapter } from 'tydb'
 import * as Logger from './Logger'
 import { StateManager } from '@shardus/types'
 
-export let Collection: any
+export let Collection: Database<any>
 
 export async function initStorage(config: Config) {
   // Get db file location from config
@@ -268,7 +266,7 @@ export async function queryLatestCycleRecords(count: number = 1) {
 }
 
 export async function queryCycleRecordsBetween(start: number, end: number) {
-  let cycleRecords = await Collection.find({
+  const cycleRecords = await Collection.find({
     filter: {
       $and: [{ 'cycleRecord.counter': { $gte: start } }, { 'cycleRecord.counter': { $lte: end } }],
     },
@@ -276,7 +274,7 @@ export async function queryCycleRecordsBetween(start: number, end: number) {
       'cycleRecord.counter': -1,
     },
   })
-  return cycleRecords.map((item: any) => item.cycleRecord)
+  return cycleRecords.map((item) => item.cycleRecord)
 }
 
 export async function queryArchivedCycleByMarker(marker: string) {
@@ -284,6 +282,7 @@ export async function queryArchivedCycleByMarker(marker: string) {
     filter: { cycleMarker: marker },
   })
   if (archivedCycles.length > 0) return archivedCycles[0]
+  return null
 }
 
 export async function queryReceiptMapHash(counter: number, partition: number) {

@@ -1,16 +1,10 @@
 import { statisticsInstance } from '../statistics'
-
-const NS_PER_SEC = 1e9
-
-const os = require('os')
+import * as os from 'os'
 import * as fastify from 'fastify'
+import * as process from 'process'
 import { resourceUsage } from 'process'
 import { getActiveList } from '../NodeList'
 import { spawn } from 'child_process'
-
-const process = require('process')
-
-// process.hrtime.bigint()
 
 interface MemoryReporting {}
 

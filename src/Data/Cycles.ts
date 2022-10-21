@@ -10,6 +10,7 @@ import { socketClients, subscribeMoreConsensorsByConsensusRadius } from './Data'
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
   marker: string
+  counter: number
 }
 
 export interface LostNode {
@@ -127,7 +128,7 @@ function updateNodeList(cycle: Cycle) {
 
   NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
 
-  NodeList.refreshNodes(NodeList.Statuses.ACTIVE, cycle.marker, refreshedConsensorInfos)
+  NodeList.refreshNodes(NodeList.Statuses.ACTIVE, refreshedConsensorInfos)
 
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)

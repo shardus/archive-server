@@ -1,6 +1,3 @@
-import { Stream } from 'stream'
-
-const NS_PER_SEC = 1e9
 import * as fastify from 'fastify'
 import { stringifyReduce } from './StringifyReduce'
 import * as core from '@shardus/crypto-utils'

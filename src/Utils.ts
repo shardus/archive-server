@@ -69,43 +69,6 @@ export function shuffleArray<T>(array: T[]) {
   }
 }
 
-export const robustPromiseAll = async (promises: any) => {
-  // This is how we wrap a promise to prevent it from rejecting directing in the Promise.all and causing a short circuit
-  const wrapPromise = async (promise: any) => {
-    // We are trying to await the promise, and catching any rejections
-    // We return an array, the first index being resolve, and the second being an error
-    try {
-      const result = await promise
-      return [result]
-    } catch (e) {
-      return [null, e]
-    }
-  }
-
-  const wrappedPromises = []
-  // We wrap all the promises we received and push them to an array to be Promise.all'd
-  for (const promise of promises) {
-    wrappedPromises.push(wrapPromise(promise))
-  }
-  const resolved = []
-  const errors = []
-  // We await the wrapped promises to finish resolving or rejecting
-  const wrappedResults = await Promise.all(wrappedPromises)
-  // We iterate over all the results, checking if they resolved or rejected
-  for (const wrapped of wrappedResults) {
-    const [result, err] = wrapped
-    // If there was an error, we push it to our errors array
-    if (err) {
-      errors.push(err)
-      continue
-    }
-    // Otherwise, we were able to resolve so we push it to the resolved array
-    resolved.push(result)
-  }
-  // We return two arrays, one of the resolved promises, and one of the errors
-  return [resolved, errors]
-}
-
 export async function robustQuery<Node = unknown, Response = unknown>(
   nodes: Node[] = [],
   queryFn: QueryFunction<Node, Response>,
@@ -202,33 +165,25 @@ export async function robustQuery<Node = unknown, Response = unknown>(
 
   const queryNodes = async (nodes: Node[]) => {
     // Wrap the query so that we know which node it's coming from
-    const wrappedQuery = async (node: any) => {
+    const wrappedQuery = async (node: Node) => {
       const response = await queryFn(node)
       return { response, node }
     }
 
     // We create a promise for each of the first `redundancy` nodes in the shuffled array
-    const queries = []
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i]
-      queries.push(wrappedQuery(node))
-    }
-    const [results, errs] = await robustPromiseAll(queries)
-
-    let finalResult
-    for (const result of results) {
-      const { response, node } = result
-      if (responses === null) continue // ignore null response; can be null if we tried to query ourself
-      finalResult = responses.add(response, node)
-      if (finalResult) break
+    const queries = nodes.map((node) => wrappedQuery(node))
+    const results = await Promise.allSettled(queries)
+    for (let result of results) {
+      if (result.status === 'rejected') {
+        Logger.mainLogger.error('p2p/Utils:robustQuery:queryNodes:', result.reason)
+        errors += 1
+      } else if (responses != null && !finalResult) {
+        const { response, node } = result.value
+        // ignore null response; can be null if we tried to query ourself
+        finalResult = responses.add(response, node)
+      }
     }
 
-    for (const err of errs) {
-      Logger.mainLogger.error('p2p/Utils:robustQuery:queryNodes:', err)
-      errors += 1
-    }
-
-    if (!finalResult) return null
     return finalResult
   }
 

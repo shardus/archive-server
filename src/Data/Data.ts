@@ -22,11 +22,8 @@ import { P2P as P2PTypes, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
-import { queryArchivedCycleByMarker } from '../Storage'
-import { queryArchivedCycles } from '../test/api/archivedCycles'
 import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
-import * as AccountDB from '../dbstore/accounts'
 import * as ReceiptDB from '../dbstore/receipts'
 
 // Socket modules
@@ -40,7 +37,6 @@ export let combineAccountsData = []
 let forwardGenesisAccounts = true
 let multipleDataSenders = true
 let consensorsCountToSubscribe = 3
-let receivedCounters = {}
 let selectByConsensuRadius = true
 let selectingNewDataSender = false
 let queueForSelectingNewDataSenders: Map<string, string> = new Map()
@@ -57,10 +53,6 @@ export interface DataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes> {
 interface DataResponse<T extends P2PTypes.SnapshotTypes.ValidTypes> {
   type: P2PTypes.SnapshotTypes.TypeName<T>
   data: T[]
-}
-
-interface DataKeepAlive {
-  keepAlive: boolean
 }
 
 export interface ReceiptMapQueryResponse {
@@ -94,7 +86,7 @@ export let currentDataSenders: string[] = []
 
 export function initSocketServer(io: SocketIO.Server) {
   socketServer = io
-  socketServer.on('connection', (socket: SocketIO.Socket) => {
+  socketServer.on('connection', () => {
     Logger.mainLogger.debug('Explorer has connected')
   })
 }
@@ -308,11 +300,7 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   )
 }
 
-export function createQueryRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
-  type: string,
-  lastData: number,
-  recipientPk: Crypto.types.publicKey
-) {
+export function createQueryRequest(type: string, lastData: number, recipientPk: Crypto.types.publicKey) {
   return Crypto.tag(
     {
       type,
@@ -552,46 +540,7 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   return removedSenders
 }
 
-function clearFalseNodes(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
-  // Logger.mainLogger.debug(
-  //   `${new Date()}: Clearing data not sending node that is in socker list ${publicKey}`
-  // )
-  // console.log('Clear False Nodes', publicKey)
-  if (socketClients.size < 2) {
-    return
-  }
-  for (let [key, sender] of socketClients) {
-    if (key != publicKey) {
-      if (receivedCounters[key]) receivedCounters[key]++
-      else receivedCounters[key] = 1
-    } else {
-      receivedCounters[key] = 1
-    }
-  }
-  for (let [key, sender] of dataSenders) {
-    if (key != publicKey) {
-      if (receivedCounters[key]) receivedCounters[key]++
-      else receivedCounters[key] = 1
-    } else {
-      receivedCounters[key] = 1
-    }
-  }
-  for (let pk in receivedCounters) {
-    const publicKey: any = pk
-    if (receivedCounters[publicKey] > 50) {
-      if (socketClients.has(publicKey)) {
-        console.log('Unsubscribe 2', publicKey)
-        unsubscribeDataSender(publicKey)
-      }
-      if (dataSenders.has(publicKey)) removeDataSenders(publicKey)
-      delete receivedCounters[publicKey]
-    }
-    if (!socketClients.has(publicKey) || !dataSenders.has(publicKey)) delete receivedCounters[publicKey]
-  }
-  // console.log('Clear False Nodes', receivedCounters)
-}
-
-function selectNewDataSender(publicKey) {
+function selectNewDataSender(publicKey: string) {
   // Randomly pick an active node
   const activeList = NodeList.getActiveList()
   let newSender = activeList[Math.floor(Math.random() * activeList.length)]
@@ -1053,7 +1002,7 @@ export async function joinNetwork(
 ): Promise<boolean> {
   Logger.mainLogger.debug('Is firstTime', isFirstTime)
   if (!isFirstTime) {
-    let isJoined
+    let isJoined: boolean
     if (checkFromConsensor) isJoined = await checkJoinStatusFromConsensor(nodeList)
     else isJoined = await checkJoinStatus()
     if (isJoined) {
@@ -1100,7 +1049,7 @@ export async function submitJoin(
   }
 }
 
-export function sendLeaveRequest(nodeInfo: NodeList.ConsensusNodeInfo, cycle: Cycles.Cycle) {
+export function sendLeaveRequest(nodeInfo: NodeList.ConsensusNodeInfo) {
   let leaveRequest = P2P.createArchiverLeaveRequest()
   Logger.mainLogger.debug('Emitting submitLeaveRequest event')
   emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
@@ -1278,7 +1227,15 @@ export async function processStateMetaData(response: any) {
   }
   profilerInstance.profileSectionStart('state_metadata')
   for (let stateMetaData of STATE_METADATA) {
-    let data, receipt, summary
+    let data: { parentCycle: any; networkHash?: any; partitionHashes?: any }
+    let receipt: {
+      parentCycle: any
+      networkHash?: any
+      partitionHashes?: any
+      partitionMaps?: {}
+      partitionTxs?: {}
+    }
+    let summary: { parentCycle: any; networkHash?: any; partitionHashes?: any; partitionBlobs?: {} }
     // [TODO] validate the state data by robust querying other nodes
 
     // store state hashes to archivedCycle
@@ -1529,9 +1486,9 @@ export async function processStateMetaData(response: any) {
   profilerInstance.profileSectionEnd('state_metadata')
 }
 
-export async function sendToExplorer(counter) {
+export async function sendToExplorer(counter: number) {
   if (socketServer) {
-    let completedArchivedCycle
+    let completedArchivedCycle: any[]
     if (lastSentCycleCounterToExplorer === 0) {
       completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(
         lastSentCycleCounterToExplorer,
@@ -1574,15 +1531,6 @@ export async function fetchCycleRecords(
   start: number,
   end: number
 ): Promise<any> {
-  function isSameCyceInfo(info1: any, info2: any) {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
-  }
-
   const queryFn = async (node: any) => {
     const response: any = await P2P.getJson(
       `http://${node.ip}:${node.port}/cycleinfo?start=${start}&end=${end}`
@@ -1851,7 +1799,6 @@ export async function syncGenesisAccountsFromConsensor(
   firstConsensor: NodeList.ConsensusNodeInfo
 ) {
   if (totalGenesisAccounts <= 0) return
-  let complete = false
   let startAccount = 0
   // let combineAccountsData = [];
   let totalDownloadedAccounts = 0
@@ -1862,7 +1809,6 @@ export async function syncGenesisAccountsFromConsensor(
     )
     if (response && response.accounts) {
       if (response.accounts.length < 1000) {
-        complete = true
         Logger.mainLogger.debug('Download completed for accounts')
       }
       Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length)
@@ -1904,7 +1850,7 @@ export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
 
-    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
+    prevCycles.sort((a: { counter: number }, b: { counter: number }) => (a.counter > b.counter ? -1 : 1))
 
     // Add prevCycles to our cycle chain
     let prepended = 0
@@ -1975,7 +1921,7 @@ export async function syncCyclesAndNodeList(
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
 
-    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
+    prevCycles.sort((a: { counter: number }, b: { counter: number }) => (a.counter > b.counter ? -1 : 1))
 
     // Add prevCycles to our cycle chain
     let prepended = 0
@@ -2048,7 +1994,7 @@ export async function syncCyclesAndNodeList(
 
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
-    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
+    prevCycles.sort((a: { counter: number }, b: { counter: number }) => (a.counter > b.counter ? -1 : 1))
 
     // Add prevCycles to our cycle chain
     let combineCycles = []
@@ -2126,7 +2072,7 @@ export async function syncReceipts(
   if (!response || response.totalReceipts < 0) {
     return false
   }
-  const { totalCycles, totalReceipts } = response
+  const { totalReceipts } = response
   await downloadReceipts(totalReceipts, lastStoredReceiptCount, randomArchiver)
   Logger.mainLogger.debug('Sync receipts data completed!')
   return false
@@ -2479,7 +2425,7 @@ export async function compareWithOldReceiptsData(
   const response: any = await P2P.getJson(
     `http://${archiver.ip}:${archiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`
   )
-  let downloadedReceiptCountByCycles
+  let downloadedReceiptCountByCycles: string | any[]
   if (response && response.receipts) {
     downloadedReceiptCountByCycles = response.receipts
   } else {
@@ -2508,7 +2454,7 @@ export async function compareWithOldReceiptsData(
 }
 
 export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo, lastCycleCounter = 0) {
-  let downloadedCycles
+  let downloadedCycles: any[]
   const response: any = await P2P.getJson(
     `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${
       lastCycleCounter - 1
@@ -2525,7 +2471,7 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
   }
   let oldCycles = await CycleDB.queryCycleRecordsBetween(lastCycleCounter - 10, lastCycleCounter + 1)
   downloadedCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1))
-  oldCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1))
+  oldCycles.sort((a: { counter: number }, b: { counter: number }) => (a.counter > b.counter ? 1 : -1))
   let success = false
   let cycle = 0
   for (let i = 0; i < downloadedCycles.length; i++) {
@@ -2770,7 +2716,7 @@ async function validateAndStoreSummaryBlobs(
         }
       }
       coveredPartitions.push(partition)
-      let summaryBlob
+      let summaryBlob: StateManager.StateManagerTypes.SummaryBlob
       let dataBlob = dataStats.find((d) => d.partition === partition)
       let txBlob = txStats.find((t) => t.partition === partition)
       let summaryHash = await Storage.querySummaryHash(cycle, partition)

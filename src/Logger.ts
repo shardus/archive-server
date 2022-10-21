@@ -1,6 +1,5 @@
 import * as log4js from 'log4js'
 import { existsSync, mkdirSync } from 'fs'
-const stringify = require('fast-stable-stringify')
 const log4jsExtend = require('log4js-extend')
 
 interface Logger {
