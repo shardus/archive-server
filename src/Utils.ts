@@ -455,10 +455,3 @@ export function validateTypes(inp: any, def: any) {
   }
   return ''
 }
-
-/**
- * Checks whether the given thing is undefined
- */
-export function isUndefined(thing: unknown) {
-  return typeof thing === 'undefined'
-}

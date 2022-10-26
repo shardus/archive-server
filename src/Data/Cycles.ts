@@ -68,8 +68,7 @@ export function setLastProcessedMetaDataCounter(value: number) {
 }
 
 export function computeCycleMarker(fields: Cycle) {
-  const cycleMarker = Crypto.hashObj(fields)
-  return cycleMarker
+  return Crypto.hashObj(fields)
 }
 
 // validation of cycle record against previous marker
@@ -77,8 +76,7 @@ export function validateCycle(prev: Cycle, next: Cycle): boolean {
   let previousRecordWithoutMarker: Cycle = { ...prev }
   delete previousRecordWithoutMarker.marker
   const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
-  if (next.previous !== prevMarker) return false
-  return true
+  return next.previous === prevMarker
 }
 
 interface P2PNode {
@@ -127,7 +125,7 @@ function updateNodeList(cycle: Cycle) {
 
   NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
 
-  NodeList.refreshNodes(NodeList.Statuses.ACTIVE, cycle.marker, refreshedConsensorInfos)
+  NodeList.refreshNodes(NodeList.Statuses.ACTIVE, refreshedConsensorInfos)
 
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)

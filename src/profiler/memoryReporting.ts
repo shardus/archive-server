@@ -1,12 +1,10 @@
 import { statisticsInstance } from '../statistics'
-
-const NS_PER_SEC = 1e9
-
-const os = require('os')
 import * as fastify from 'fastify'
 import { resourceUsage } from 'process'
 import { getActiveList } from '../NodeList'
 import { spawn } from 'child_process'
+
+const os = require('os')
 
 const process = require('process')
 
@@ -179,8 +177,7 @@ class MemoryReporting {
     }
 
     this.lastCPUTimes = currentTimes
-    let percentUsed = percentTotal / currentTimes.length
-    return percentUsed
+    return percentTotal / currentTimes.length
   }
 
   roundTo3decimals(num: number) {

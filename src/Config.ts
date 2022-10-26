@@ -1,8 +1,8 @@
 import { readFileSync } from 'fs'
-import merge = require('deepmerge')
-import minimist = require('minimist')
 import { ArchiverNodeInfo } from './State'
 import * as Logger from './Logger'
+import merge = require('deepmerge')
+import minimist = require('minimist')
 
 export interface Config {
   [index: string]: object | string | number | boolean
@@ -83,8 +83,7 @@ export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args
           try {
             var parameterStr = env[param]
             if (parameterStr) {
-              let parameterObj = JSON.parse(parameterStr)
-              config[param] = parameterObj
+              config[param] = JSON.parse(parameterStr)
             }
           } catch (e) {
             Logger.mainLogger.error(e)

@@ -5,7 +5,7 @@ import * as NodeList from './NodeList'
 import 'node-fetch'
 import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
-import { P2P as P2PTypes, StateManager } from '@shardus/types'
+import { P2P as P2PTypes } from '@shardus/types'
 
 export enum RequestTypes {
   JOIN = 'JOIN',

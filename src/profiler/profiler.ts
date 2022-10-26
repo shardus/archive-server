@@ -1,9 +1,5 @@
 import { nestedCountersInstance } from './nestedCounters'
-import { memoryReportingInstance } from './memoryReporting'
-import { sleep } from '../Utils'
 import * as fastify from 'fastify'
-
-const NS_PER_SEC = 1e9
 
 let profilerSelfReporting = false
 
@@ -41,7 +37,7 @@ class Profiler {
 
   registerEndpoints() {
     this.server.get('/perf', (req, res) => {
-      let result = this.printAndClearReport(1)
+      let result = this.printAndClearReport()
       res.send(result)
     })
   }
@@ -179,7 +175,7 @@ class Profiler {
     }
   }
 
-  printAndClearReport(delta?: number): string {
+  printAndClearReport(): string {
     this.profileSectionEnd('_total', true)
 
     let result = 'Profile Sections:\n'
@@ -187,7 +183,6 @@ class Profiler {
     let divider = BigInt(d1)
 
     let totalSection = this.sectionTimes['_total']
-    let totalBusySection = this.sectionTimes['_totalBusy']
     console.log('totalSection from printAndClearReport', totalSection)
 
     let lines = []

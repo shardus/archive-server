@@ -1,6 +1,3 @@
-import { Stream } from 'stream'
-
-const NS_PER_SEC = 1e9
 import * as fastify from 'fastify'
 import { stringifyReduce } from './StringifyReduce'
 import * as core from '@shardus/crypto-utils'
@@ -86,7 +83,6 @@ class NestedCounters {
       nextNode = <CounterNode>counterMap.get(category1)
     }
     nextNode.count += count
-    counterMap = nextNode.subCounters
   }
 
   countRareEvent(category1: string, category2: string, count: number = 1) {
@@ -148,7 +144,7 @@ class NestedCounters {
   printArrayReport(arrayReport: any[], outputStr: string, indent = 0) {
     let indentText = '___'.repeat(indent)
     for (let item of arrayReport) {
-      let { key, count, subArray, avgLen, logLen } = item
+      let { key, count, subArray } = item
       let countStr = `${count}`
       outputStr += `${countStr.padStart(10)} ${indentText} ${key}\n`
       if (subArray != null && subArray.length > 0) {

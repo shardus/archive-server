@@ -1,8 +1,8 @@
-import { join } from 'path'
+import { join, resolve } from 'path'
 import * as fastify from 'fastify'
 import * as fastifyCors from 'fastify-cors'
-import { Server, IncomingMessage, ServerResponse } from 'http'
-import { overrideDefaultConfig, config } from './Config'
+import { IncomingMessage, Server, ServerResponse } from 'http'
+import { config, overrideDefaultConfig } from './Config'
 import * as Crypto from './Crypto'
 import * as State from './State'
 import * as NodeList from './NodeList'
@@ -11,11 +11,10 @@ import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
-import { sendGossip, addHashesGossip } from './Data/Gossip'
+import { addHashesGossip } from './Data/Gossip'
 import * as Logger from './Logger'
 import { P2P as P2PTypes } from '@shardus/types'
 import { readFileSync } from 'fs'
-import { resolve } from 'path'
 import { Readable } from 'stream'
 import MemoryReporting, { memoryReportingInstance } from './profiler/memoryReporting'
 import NestedCounters, { nestedCountersInstance } from './profiler/nestedCounters'
@@ -160,7 +159,7 @@ async function syncAndStartServer() {
   ) {
     throw Error(`Can't fetch data from the archiver ${randomArchiver.ip}:${randomArchiver.port}`)
   }
-  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
+  const { totalCycles, totalReceipts } = response
   if (lastStoredReceiptCount > totalReceipts || lastStoredCycleCount > totalCycles) {
     throw Error(
       'The existing db has more data than the network data! Clear the DB and start the server again!'
@@ -519,8 +518,7 @@ function startServer() {
       )
       return
     }
-    let archivedCycles = []
-    archivedCycles = await Storage.queryAllArchivedCyclesBetween(from, to)
+    const archivedCycles = await Storage.queryAllArchivedCyclesBetween(from, to)
     const res = Crypto.sign({
       archivedCycles,
     })
@@ -538,8 +536,7 @@ function startServer() {
       reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
       return
     }
-    let lostNodes = []
-    lostNodes = Cycles.getLostNodes(from, to)
+    let lostNodes = Cycles.getLostNodes(from, to)
     const res = Crypto.sign({
       lostNodes,
     })

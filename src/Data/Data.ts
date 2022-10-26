@@ -22,11 +22,8 @@ import { P2P as P2PTypes, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
-import { queryArchivedCycleByMarker } from '../Storage'
-import { queryArchivedCycles } from '../test/api/archivedCycles'
-import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
+import { storeAccountData, storeCycleData, storeReceiptData, storingAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
-import * as AccountDB from '../dbstore/accounts'
 import * as ReceiptDB from '../dbstore/receipts'
 
 // Socket modules
@@ -97,7 +94,7 @@ export let currentDataSenders: string[] = []
 
 export function initSocketServer(io: SocketIO.Server) {
   socketServer = io
-  socketServer.on('connection', (socket: SocketIO.Socket) => {
+  socketServer.on('connection', () => {
     Logger.mainLogger.debug('Explorer has connected')
   })
 }
@@ -575,7 +572,7 @@ function clearFalseNodes(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   if (socketClients.size < 2) {
     return
   }
-  for (let [key, sender] of socketClients) {
+  for (let [key] of socketClients) {
     if (key != publicKey) {
       if (receivedCounters[key]) receivedCounters[key]++
       else receivedCounters[key] = 1
@@ -583,7 +580,7 @@ function clearFalseNodes(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
       receivedCounters[key] = 1
     }
   }
-  for (let [key, sender] of dataSenders) {
+  for (let [key] of dataSenders) {
     if (key != publicKey) {
       if (receivedCounters[key]) receivedCounters[key]++
       else receivedCounters[key] = 1
@@ -613,7 +610,7 @@ function selectNewDataSender(publicKey: string) {
   if (config.VERBOSE) console.log('newSender 1', newSender)
   if (multipleDataSenders) {
     let retry = 0
-    while (true && retry < 5) {
+    while (retry < 5) {
       // Retry 5 times to get the new Sender
       if (!socketClients.has(newSender.publicKey)) {
         break
@@ -709,7 +706,7 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
       let newSenderInfo = newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
       let connectionStatus = false
       let retry = 0
-      while (true && retry < consensusRadius) {
+      while (retry < consensusRadius) {
         if (!socketClients.has(newSenderInfo.publicKey) && publicKey !== newSenderInfo.publicKey) {
           connectionStatus = await createDataTransferConnection(newSenderInfo)
           if (connectionStatus) {
@@ -869,7 +866,7 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
     let newSenderInfo = subsetList[Math.floor(Math.random() * subsetList.length)]
     let connectionStatus = false
     let retry = 0
-    while (true && retry < consensusRadius) {
+    while (retry < consensusRadius) {
       // Retry 5 times to get the new Sender
       if (!socketClients.has(newSenderInfo.publicKey)) {
         connectionStatus = await createDataTransferConnection(newSenderInfo)
@@ -982,7 +979,7 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
     let newSenderInfo = activeList[Math.floor(Math.random() * activeList.length)]
     if (multipleDataSenders) {
       let retry = 0
-      while (true && retry < 5) {
+      while (retry < 5) {
         // Retry 5 times to get the new Sender
         if (!socketClients.has(newSenderInfo.publicKey)) {
           break
@@ -1103,7 +1100,7 @@ export async function submitJoin(
   }
 }
 
-export function sendLeaveRequest(nodeInfo: NodeList.ConsensusNodeInfo, cycle: Cycles.Cycle) {
+export function sendLeaveRequest(nodeInfo: NodeList.ConsensusNodeInfo) {
   let leaveRequest = P2P.createArchiverLeaveRequest()
   Logger.mainLogger.debug('Emitting submitLeaveRequest event')
   emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
@@ -1196,8 +1193,7 @@ export function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInf
 
 async function sendDataQuery(consensorNode: NodeList.ConsensusNodeInfo, dataQuery: any, validateFn: any) {
   const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
-  let result = await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
-  return result
+  return await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
 }
 
 async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) {
@@ -1568,8 +1564,7 @@ export async function fetchStateHashes(archivers: any) {
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime
     delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
+    return isDeepStrictEqual(cm1, cm2)
   }
 
   const queryFn = async (node: any) => {
@@ -1585,15 +1580,6 @@ export async function fetchCycleRecords(
   start: number,
   end: number
 ): Promise<any> {
-  function isSameCyceInfo(info1: any, info2: any) {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
-  }
-
   const queryFn = async (node: any) => {
     const response: any = await P2P.getJson(
       `http://${node.ip}:${node.port}/cycleinfo?start=${start}&end=${end}`
@@ -1610,8 +1596,7 @@ export async function getNewestCycleFromArchivers(activeArchivers: State.Archive
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime
     delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
+    return isDeepStrictEqual(cm1, cm2)
   }
 
   const queryFn = async (node: any) => {
@@ -1792,10 +1777,9 @@ export function parseRecord(record: any): Change {
 }
 
 export function parse(record: any): Change {
-  const changes = parseRecord(record)
   // const mergedChange = deepmerge.all<Change>(changes)
   // return mergedChange
-  return changes
+  return parseRecord(record)
 }
 
 function applyNodeListChange(change: Change) {
@@ -2186,7 +2170,7 @@ export async function syncReceipts(
   if (!response || response.totalReceipts < 0) {
     return false
   }
-  const { totalCycles, totalReceipts } = response
+  const { totalReceipts } = response
   if (totalReceipts > 0) await downloadReceipts(totalReceipts, lastStoredReceiptCount, randomArchiver)
   Logger.mainLogger.debug('Sync receipts data completed!')
   return false
@@ -2317,7 +2301,6 @@ export async function syncReceiptsByCycle(
           page++
         } else {
           Logger.mainLogger.debug('Invalid download response')
-          continue
         }
       }
       Logger.mainLogger.debug(`Download receipts completed for ${startCycle} - ${endCycle}`)
@@ -2331,7 +2314,6 @@ export async function syncReceiptsByCycle(
         continue
       }
       Logger.mainLogger.debug('Invalid download response')
-      continue
     }
   }
   return false
@@ -2729,8 +2711,7 @@ export const calculateNetworkHash = (data: object): string => {
     }
   }
   hashArray = hashArray.sort()
-  const calculatedHash = Crypto.hashObj(hashArray)
-  return calculatedHash
+  return Crypto.hashObj(hashArray)
 }
 
 export type QueryDataResponse = ReceiptMapQueryResponse | StatsClumpQueryResponse

@@ -48,7 +48,7 @@ export async function bulkInsertAccounts(accounts: AccountCopy[]) {
   }
 }
 
-export async function updateAccount(accountId: string, account: AccountCopy) {
+export async function updateAccount(account: AccountCopy) {
   try {
     const sql = `UPDATE accounts SET cycleNumber = $cycleNumber, timestamp = $timestamp, data = $data, hash = $hash WHERE accountId = $accountId `
     await db.run(sql, {

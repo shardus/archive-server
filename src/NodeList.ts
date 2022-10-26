@@ -1,12 +1,9 @@
-import { config } from './Config'
-import * as Crypto from './Crypto'
 import * as State from './State'
 import * as P2P from './P2P'
 import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
-import { P2P as P2PTypes } from '@shardus/types'
 
 // TYPES
 
@@ -106,11 +103,7 @@ export function addNodes(
     realUpdatedTimes.set('/nodelist', Date.now())
   }
 }
-export function refreshNodes(
-  status: Statuses,
-  cycleMarkerJoined: string,
-  nodes: ConsensusNodeInfo[] | Data.JoinedConsensor[]
-) {
+export function refreshNodes(status: Statuses, nodes: ConsensusNodeInfo[] | Data.JoinedConsensor[]) {
   Logger.mainLogger.debug('Typeof Nodes to refresh', typeof nodes)
   Logger.mainLogger.debug('Length of Nodes to refresh', nodes.length)
   Logger.mainLogger.debug('Nodes to refresh', nodes)
@@ -224,8 +217,7 @@ export async function getActiveListFromArchivers(
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime
     delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
+    return isDeepStrictEqual(cm1, cm2)
   }
 
   const queryFn = async (node: any) => {

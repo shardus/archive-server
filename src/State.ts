@@ -4,8 +4,6 @@ import * as P2P from './P2P'
 import * as NodeList from './NodeList'
 import * as Data from './Data/Data'
 import * as Utils from './Utils'
-import { isString } from 'util'
-import { Node } from 'tydb/dist/core'
 import * as Logger from './Logger'
 
 export interface ArchiverNodeState {
@@ -93,9 +91,8 @@ export async function exitArchiver() {
   try {
     const randomConsensor: NodeList.ConsensusNodeInfo = NodeList.getRandomActiveNode()[0]
     if (randomConsensor) {
-      const newestCycleRecord = await Data.getNewestCycleFromConsensors(NodeList.getActiveList())
       // Send a leave request to a random consensus node from the nodelist
-      let isLeaveRequestSent = await Data.sendLeaveRequest(randomConsensor, newestCycleRecord)
+      let isLeaveRequestSent = await Data.sendLeaveRequest(randomConsensor)
       Logger.mainLogger.debug('isLeaveRequestSent', isLeaveRequestSent)
       if (isLeaveRequestSent) {
         Logger.mainLogger.debug('Archiver will exit in 3 seconds.')

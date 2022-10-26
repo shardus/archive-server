@@ -59,7 +59,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
       }
       const accountExist = await Account.queryAccountByAccountId(account.accountId)
       if (accountExist) {
-        if (accObj.timestamp > accountExist.timestamp) await Account.updateAccount(accObj.accountId, accObj)
+        if (accObj.timestamp > accountExist.timestamp) await Account.updateAccount(accObj)
       } else {
         // await Account.insertAccount(accObj)
         combineAccounts.push(accObj)
