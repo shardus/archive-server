@@ -1,9 +1,9 @@
 declare module 'shardus-crypto-types' {
   export type hexstring = string
   export type publicKey = hexstring
-  export type secretKey = hexstring
+  export type secretKey = hexstring | Buffer
   export type curvePublicKey = hexstring
-  export type curveSecretKey = hexstring
+  export type curveSecretKey = hexstring | Buffer
   export type sharedKey = hexstring
 
   export interface Keypair {
@@ -39,7 +39,7 @@ declare module '@shardus/crypto-utils' {
       removeSign?: boolean,
       removeTag?: boolean
     ) => CryptoTypes.hexstring
-    generateKeypair: () => CryptoTypes.Keypair
+    generateKeypair: (opts?: { encodeSecretToHex?: boolean }) => CryptoTypes.Keypair
     stringify: (obj: CryptoTypes.LooseObject) => string
     signObj: (
       obj: CryptoTypes.LooseObject,
@@ -49,7 +49,12 @@ declare module '@shardus/crypto-utils' {
     verifyObj: (obj: CryptoTypes.SignedObject) => boolean
     tagObj: (obj: CryptoTypes.LooseObject, sharedK: CryptoTypes.sharedKey) => void
     authenticateObj: (obj: CryptoTypes.TaggedObject, sharedK: CryptoTypes.sharedKey) => boolean
-    convertSkToCurve: (sk: CryptoTypes.secretKey) => CryptoTypes.curveSecretKey
+    convertSkToCurve: (
+      sk: CryptoTypes.secretKey,
+      opts?: {
+        encodeToHex?: boolean
+      }
+    ) => CryptoTypes.curveSecretKey
     convertPkToCurve: (pk: CryptoTypes.publicKey) => CryptoTypes.curvePublicKey
     generateSharedKey: (
       curveSk: CryptoTypes.curveSecretKey,

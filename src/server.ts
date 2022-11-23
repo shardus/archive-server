@@ -45,9 +45,9 @@ async function start() {
 
   // If no keypair provided, generate one
   if (config.ARCHIVER_SECRET_KEY === '' || config.ARCHIVER_PUBLIC_KEY === '') {
-    const keypair = Crypto.core.generateKeypair()
+    const keypair = Crypto.core.generateKeypair({ encodeSecretToHex: true })
     config.ARCHIVER_PUBLIC_KEY = keypair.publicKey
-    config.ARCHIVER_SECRET_KEY = keypair.secretKey
+    config.ARCHIVER_SECRET_KEY = String(keypair.secretKey)
   }
 
   const logsConfig = JSON.parse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))

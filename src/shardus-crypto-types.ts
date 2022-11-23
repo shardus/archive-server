@@ -1,8 +1,8 @@
 export type hexstring = string
 export type publicKey = hexstring
-export type secretKey = hexstring
+export type secretKey = hexstring | Buffer
 export type curvePublicKey = hexstring
-export type curveSecretKey = hexstring
+export type curveSecretKey = hexstring | Buffer
 export type sharedKey = hexstring
 
 export interface Keypair {

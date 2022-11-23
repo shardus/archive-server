@@ -36,7 +36,7 @@ export async function initFromConfig(config: Config) {
   nodeState.ip = config.ARCHIVER_IP
   nodeState.port = config.ARCHIVER_PORT
   nodeState.publicKey = config.ARCHIVER_PUBLIC_KEY
-  nodeState.secretKey = config.ARCHIVER_SECRET_KEY
+  nodeState.secretKey = Buffer.from(config.ARCHIVER_SECRET_KEY, 'hex')
   nodeState.curvePk = Crypto.core.convertPkToCurve(nodeState.publicKey)
   nodeState.curveSk = Crypto.core.convertSkToCurve(nodeState.secretKey)
 
