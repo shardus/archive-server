@@ -1,5 +1,6 @@
 import * as util from 'util'
 import * as Logger from './Logger'
+import FastRandomIterator from './FastRandomIterator';
 
 export function safeParse<Type>(fallback: Type, json: string, msg?: string): Type {
   if (typeof json === 'object' && json !== null) {
@@ -189,14 +190,18 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   const responses = new Tally(redundancy, equalityFn)
   let errors = 0
 
-  // [TODO] - Change the way we shuffle the array.
-  //     This is not scaleable, if the size of the nodes array is over 100 we should create an array of
-  //     indexes and shuffle that. Or maybe use a function that treats the array as a ring and starts at
-  //     a random offset in the ring and a random direction. Or use a function that visits every element
-  //     in the array once in a random order.
-  nodes = [...nodes]
+  // old shuffle.  replaced by FastRandomIterator has much better performance as the pools size grows.
+  // this will be helpfull for large networks with many active nodes.
+  // nodes = [...nodes]
+  // if (shuffleNodes === true) {
+  //   utils.shuffleArray(nodes)
+  // }
+
+  let randomNodeIterator: FastRandomIterator = null
   if (shuffleNodes === true) {
-    shuffleArray(nodes)
+    randomNodeIterator = new FastRandomIterator(nodes.length, redundancy)
+  } else {
+    nodes = [...nodes]
   }
   const nodeCount = nodes.length
 
@@ -241,7 +246,17 @@ export async function robustQuery<Node = unknown, Response = unknown>(
       Logger.mainLogger.error('In robustQuery stopping since we ran out of nodes to query.')
       break
     }
-    const nodesToQuery = nodes.splice(0, toQuery)
+    let nodesToQuery: Node[]
+    if (shuffleNodes) {
+      let index = randomNodeIterator.getNextIndex()
+      nodesToQuery = []
+      while (index >= 0 && nodesToQuery.length < toQuery) {
+        nodesToQuery.push(nodes[index])
+        index = randomNodeIterator.getNextIndex()
+      }
+    } else {
+      nodesToQuery = nodes.splice(0, toQuery)
+    }
     finalResult = await queryNodes(nodesToQuery)
     if (tries >= 20) {
       Logger.mainLogger.error('In robustQuery stopping after 20 tries.')
@@ -271,13 +286,14 @@ export async function sequentialQuery<Node = unknown, Response = unknown>(
   queryFn: QueryFunction<Node, Response>,
   verifyFn: VerifyFunction<Response> = () => true
 ): Promise<SequentialQueryResult<Node>> {
-  nodes = [...nodes]
-  shuffleArray(nodes)
 
   let result: any
   const errors: Array<SequentialQueryError<Node>> = []
 
-  for (const node of nodes) {
+  let randomNodeIterator = new FastRandomIterator(nodes.length)
+  let index = randomNodeIterator.getNextIndex()
+  while (index >= 0) {
+    const node = nodes[index]
     try {
       const response = await queryFn(node)
       if (verifyFn(response) === false) {
@@ -295,6 +311,7 @@ export async function sequentialQuery<Node = unknown, Response = unknown>(
         error,
       })
     }
+    index = randomNodeIterator.getNextIndex()
   }
   return {
     result,

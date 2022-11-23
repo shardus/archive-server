@@ -1070,8 +1070,6 @@ export async function joinNetwork(
   // Figure out when Q1 is from the latestCycle
   const { startQ1 } = calcIncomingTimes(latestCycle)
   let request = P2P.createArchiverJoinRequest()
-  let shuffledNodes = [...nodeList]
-  Utils.shuffleArray(shuffledNodes)
 
   // Wait until a Q1 then send join request to active nodes
   let untilQ1 = startQ1 - Date.now()
