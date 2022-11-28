@@ -45,7 +45,7 @@ async function start() {
 
   // If no keypair provided, generate one
   if (config.ARCHIVER_SECRET_KEY === '' || config.ARCHIVER_PUBLIC_KEY === '') {
-    const keypair = Crypto.core.generateKeypair({ encodeSecretToHex: true })
+    const keypair = Crypto.core.generateKeypair()
     config.ARCHIVER_PUBLIC_KEY = keypair.publicKey
     config.ARCHIVER_SECRET_KEY = String(keypair.secretKey)
   }

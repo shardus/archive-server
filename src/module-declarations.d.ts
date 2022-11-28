@@ -39,7 +39,7 @@ declare module '@shardus/crypto-utils' {
       removeSign?: boolean,
       removeTag?: boolean
     ) => CryptoTypes.hexstring
-    generateKeypair: (opts?: { encodeSecretToHex?: boolean }) => CryptoTypes.Keypair
+    generateKeypair: (opts?: { getSecretAsBuffer?: boolean }) => CryptoTypes.Keypair
     stringify: (obj: CryptoTypes.LooseObject) => string
     signObj: (
       obj: CryptoTypes.LooseObject,
@@ -52,7 +52,7 @@ declare module '@shardus/crypto-utils' {
     convertSkToCurve: (
       sk: CryptoTypes.secretKey,
       opts?: {
-        encodeToHex?: boolean
+        getAsBuffer?: boolean
       }
     ) => CryptoTypes.curveSecretKey
     convertPkToCurve: (pk: CryptoTypes.publicKey) => CryptoTypes.curvePublicKey
