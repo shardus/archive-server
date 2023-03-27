@@ -379,8 +379,6 @@ async function startServer() {
     const cacheUpdatedTime = NodeList.cacheUpdatedTimes.get('/nodelist')
     const realUpdatedTime = NodeList.realUpdatedTimes.get('/nodelist')
 
-    const byAscendingNodeId = (a: NodeList.ConsensusNodeInfo, b: NodeList.ConsensusNodeInfo) =>
-      a.id > b.id ? 1 : -1
     const bucketCacheKey = (index: number) => `/nodelist/${index}`
 
     if (cacheUpdatedTime && realUpdatedTime && cacheUpdatedTime > realUpdatedTime) {
@@ -396,13 +394,12 @@ async function startServer() {
 
     for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
       const nodeList = NodeList.getRandomActiveNodes(nodeCount)
-      const sortedNodeList = [...nodeList].sort(byAscendingNodeId)
-      const signedSortedNodeList = Crypto.sign({
-        nodeList: sortedNodeList,
+      const signedNodeList = Crypto.sign({
+        nodeList,
       })
 
       // Update cache
-      NodeList.cache.set(bucketCacheKey(index), signedSortedNodeList)
+      NodeList.cache.set(bucketCacheKey(index), signedNodeList)
     }
 
     // Update cache timestamps
@@ -1126,7 +1123,9 @@ async function startServer() {
         socketClientsSize: Data.socketClients.size,
       }
       if (_request.query && _request.query['dataSendersList'] === 'true')
-        data['dataSendersList'] = Array.from(Data.dataSenders.values()).map((item) => item.nodeInfo.ip + ':' + item.nodeInfo.port)
+        data['dataSendersList'] = Array.from(Data.dataSenders.values()).map(
+          (item) => item.nodeInfo.ip + ':' + item.nodeInfo.port
+        )
       const res = Crypto.sign(data)
       reply.send(res)
     }
