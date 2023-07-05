@@ -1160,6 +1160,10 @@ async function startServer() {
     }
   )
 
+  server.get('/nodelist-hash', async (_req, res) => {
+    res.send(Cycles.getLastCycle().nodeListHash)
+  })
+
   // Old snapshot ArchivedCycle endpoint;
   if (!config.experimentalSnapshot) {
     type FullArchiveRequest = FastifyRequest<{
