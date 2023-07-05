@@ -17,8 +17,9 @@ import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import fetch from 'node-fetch'
+import { CycleRecord } from '@shardus/types/build/src/p2p/CycleCreatorTypes'
 
-export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
+export interface Cycle extends CycleRecord {
   certificate: string
   marker: string
 }
@@ -320,4 +321,9 @@ export async function recordArchiversReputation() {
       console.error(error)
     })
   if (config.VERBOSE) Logger.mainLogger.debug('Active archivers status', State.archiversReputation)
+}
+
+export function getLastCycle(): CycleRecord | null {
+  let lastCycleCounter = Math.max(...Array.from(CycleChain.keys()));
+  return CycleChain.get(lastCycleCounter);
 }
