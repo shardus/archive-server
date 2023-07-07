@@ -15,7 +15,7 @@ import * as Utils from './Utils'
 import { addHashesGossip } from './archivedCycle/Gossip'
 import { syncStateMetaData } from './archivedCycle/StateMetaData'
 import * as Logger from './Logger'
-import { P2P as P2PTypes } from '@shardus/types'
+import { P2P as P2PTypes, SignedObject } from '@shardus/types'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { Readable } from 'stream'
@@ -433,7 +433,7 @@ async function startServer() {
   server.post('/nodelist', (request: NodeListRequest, reply) => {
     profilerInstance.profileSectionStart('POST_nodelist')
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
-    const signedFirstNodeInfo = request.body
+    const signedFirstNodeInfo = request.body as SignedObject<P2P.FirstNodeInfo>
 
     if (State.isFirst && NodeList.isEmpty()) {
       try {
