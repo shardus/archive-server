@@ -33,7 +33,7 @@ export interface LostNode {
 export let currentCycleDuration = 0
 export let currentCycleCounter = -1
 export let lastProcessedMetaData = -1
-export let CycleChain: Map<Cycle['counter'], any> = new Map()
+export let CycleChain: Map<Cycle['counter'], Cycle> = new Map()
 export let lostNodes: LostNode[] = []
 export const removedNodes = []
 
