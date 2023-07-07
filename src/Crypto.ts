@@ -1,5 +1,5 @@
 import * as core from '@shardus/crypto-utils'
-import * as cryptoTypes from './shardus-crypto-types'
+import { curvePublicKey, publicKey, sharedKey, SignedObject, TaggedObject } from '@shardus/types'
 import * as State from './State'
 
 // Crypto initialization fns
@@ -11,28 +11,28 @@ export function setCryptoHashKey(hashkey: string) {
 export const hashObj = core.hashObj
 
 // Asymmetric Encyption Sign/Verify API
-export type SignedMessage = cryptoTypes.SignedObject
+export type SignedMessage = SignedObject
 
-export function sign<T>(obj: T): T & cryptoTypes.SignedObject {
+export function sign<T>(obj: T): T & SignedObject {
   const objCopy = JSON.parse(core.stringify(obj))
   core.signObj(objCopy, State.getSecretKey(), State.getNodeInfo().publicKey)
   return objCopy
 }
 
-export function verify(obj: cryptoTypes.SignedObject): boolean {
+export function verify<T>(obj: SignedObject<T>): boolean {
   return core.verifyObj(obj)
 }
 
 // HMAC Tag/Authenticate API
 
-export interface TaggedMessage extends cryptoTypes.TaggedObject {
-  publicKey: cryptoTypes.publicKey
+export interface TaggedMessage extends TaggedObject {
+  publicKey: publicKey
 }
 
-const curvePublicKeys: Map<cryptoTypes.publicKey, cryptoTypes.curvePublicKey> = new Map()
-const sharedKeys: Map<cryptoTypes.publicKey, cryptoTypes.sharedKey> = new Map()
+const curvePublicKeys: Map<publicKey, curvePublicKey> = new Map()
+const sharedKeys: Map<publicKey, sharedKey> = new Map()
 
-function getOrCreateCurvePk(pk: cryptoTypes.publicKey): cryptoTypes.curvePublicKey {
+function getOrCreateCurvePk(pk: publicKey): curvePublicKey {
   let curvePk = curvePublicKeys.get(pk)
   if (!curvePk) {
     curvePk = core.convertPkToCurve(pk)
@@ -41,7 +41,7 @@ function getOrCreateCurvePk(pk: cryptoTypes.publicKey): cryptoTypes.curvePublicK
   return curvePk
 }
 
-function getOrCreateSharedKey(pk: cryptoTypes.publicKey): cryptoTypes.sharedKey {
+function getOrCreateSharedKey(pk: publicKey): sharedKey {
   let sharedK = sharedKeys.get(pk)
   if (!sharedK) {
     const ourCurveSk = State.getCurveSk()
@@ -51,7 +51,7 @@ function getOrCreateSharedKey(pk: cryptoTypes.publicKey): cryptoTypes.sharedKey 
   return sharedK
 }
 
-export function tag<T>(obj: T, recipientPk: cryptoTypes.publicKey): T & TaggedMessage {
+export function tag<T>(obj: T, recipientPk: publicKey): T & TaggedMessage {
   const sharedKey = getOrCreateSharedKey(recipientPk)
   const objCopy = JSON.parse(core.stringify(obj))
   objCopy.publicKey = State.getNodeInfo().publicKey
@@ -64,4 +64,4 @@ export function authenticate(msg: TaggedMessage): boolean {
   return core.authenticateObj(msg, sharedKey)
 }
 
-export { core, cryptoTypes as types }
+export { core }
