@@ -323,7 +323,6 @@ export async function recordArchiversReputation() {
   if (config.VERBOSE) Logger.mainLogger.debug('Active archivers status', State.archiversReputation)
 }
 
-export function getLastCycle(): CycleRecord | null {
-  let lastCycleCounter = Math.max(...Array.from(CycleChain.keys()));
-  return CycleChain.get(lastCycleCounter);
+export function getCurrentCycle(): Cycle | null {
+  return CycleChain.get(currentCycleCounter);
 }

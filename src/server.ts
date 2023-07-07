@@ -1161,7 +1161,7 @@ async function startServer() {
   )
 
   server.get('/nodelist-hash', async (_req, res) => {
-    res.send(Cycles.getLastCycle().nodeListHash)
+    res.send(Cycles.getCurrentCycle()?.nodeListHash)
   })
 
   // Old snapshot ArchivedCycle endpoint;
