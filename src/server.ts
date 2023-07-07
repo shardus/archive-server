@@ -1160,7 +1160,7 @@ async function startServer() {
     }
   )
 
-  server.get('/nodelist-hash', async (_req, res) => {
+  server.get('/node-list-hash', async (_req, res) => {
     res.send(Cycles.getCurrentCycle()?.nodeListHash)
   })
 
