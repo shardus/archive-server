@@ -126,7 +126,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 
   socketClient.on(
     'DATA',
-    (newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) => {
+    (newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage<P2PTypes.ArchiversTypes.DataResponse>) => {
       if (!newData || !newData.responses) return
       if (newData.recipient !== State.getNodeInfo().publicKey) {
         Logger.mainLogger.debug('This data is not meant for this archiver')
