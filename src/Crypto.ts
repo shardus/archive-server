@@ -1,5 +1,5 @@
 import * as core from '@shardus/crypto-utils'
-import { curvePublicKey, publicKey, sharedKey, SignedObject, TaggedObject } from '@shardus/types'
+import { curvePublicKey, LooseObject, publicKey, sharedKey, SignedObject, TaggedObject } from '@shardus/types'
 import * as State from './State'
 
 // Crypto initialization fns
@@ -25,7 +25,7 @@ export function verify<T>(obj: SignedObject<T>): boolean {
 
 // HMAC Tag/Authenticate API
 
-export interface TaggedMessage extends TaggedObject {
+export type TaggedMessage<T = LooseObject> = TaggedObject<T> & {
   publicKey: publicKey
 }
 
@@ -59,7 +59,7 @@ export function tag<T>(obj: T, recipientPk: publicKey): T & TaggedMessage {
   return objCopy
 }
 
-export function authenticate(msg: TaggedMessage): boolean {
+export function authenticate<T>(msg: TaggedMessage<T>): boolean {
   const sharedKey = getOrCreateSharedKey(msg.publicKey)
   return core.authenticateObj(msg, sharedKey)
 }
