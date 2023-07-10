@@ -1168,6 +1168,10 @@ async function startServer() {
     res.send(Cycles.getCurrentCycle()?.marker)
   })
 
+  server.get('/current-cycle', async (_req, res) => {
+    res.send(Cycles.getCurrentCycle())
+  })
+
   // Old snapshot ArchivedCycle endpoint;
   if (!config.experimentalSnapshot) {
     type FullArchiveRequest = FastifyRequest<{
