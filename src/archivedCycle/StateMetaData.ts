@@ -28,7 +28,7 @@ import * as Gossip from './Gossip'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import { BaseModel } from 'tydb'
-import { P2P as P2PTypes, StateManager } from '@shardus/types'
+import { P2P as P2PTypes, publicKey, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
@@ -180,7 +180,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   type: P2PTypes.SnapshotTypes.TypeName<T>,
   lastData: P2PTypes.SnapshotTypes.TypeIndex<T>,
-  recipientPk: Crypto.types.publicKey
+  recipientPk: publicKey
 ) {
   return Crypto.tag<DataRequest<T>>(
     {
@@ -191,7 +191,7 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   )
 }
 
-export function createQueryRequest(type: string, lastData: number, recipientPk: Crypto.types.publicKey) {
+export function createQueryRequest(type: string, lastData: number, recipientPk: publicKey) {
   return Crypto.tag(
     {
       type,
@@ -490,7 +490,7 @@ async function sendDataQuery(consensorNode: NodeList.ConsensusNodeInfo, dataQuer
   return result
 }
 
-async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) {
+async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage<P2PTypes.ArchiversTypes.DataResponse>) {
   // Get sender entry
   const sender = dataSenders.get(newData.publicKey)
 
