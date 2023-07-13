@@ -468,3 +468,138 @@ export function validateTypes(inp: any, def: any) {
 export function isUndefined(thing: unknown) {
   return typeof thing === 'undefined'
 }
+
+/**
+ * Checks whether the given IP address is a valid IPv6 address.
+ * @param ip The IP address to check.
+ * @returns True if the IP address is a valid IPv6 address, false otherwise.
+ */
+export function isIPv6(ip: string): boolean {
+  const slicedArr = ip.split(':')
+  if (slicedArr.length !== 8) return false
+
+  //TODO potentially replace regex with something faster (needs testing)
+  for (const str of slicedArr) {
+    // Check if string is a valid regex
+    const hexRegex = /^[0-9A-Fa-f]+$/
+    if (str.length < 0 || str.length > 4) return false
+    if (str.match(hexRegex) == null) return false
+  }
+
+  return true
+}
+
+/**
+ * Checks whether the given IP address is a bogon IP address.
+ * @param ip The IP address to check.
+ * @returns True if the IP address is a bogon IP address, false otherwise.
+ */
+export function isBogonIP(ip): boolean {
+  let ipArr
+  try {
+    ipArr = getIpArr(ip)
+  } catch (e) {
+    console.log(ip, e)
+    return true
+  }
+  return isPrivateIP(ipArr) || isReservedIP(ipArr)
+}
+
+/**
+ * Checks whether the given IP address is an invalid IP address for LAN use.
+ * @param ip The IP address to check.
+ * @returns True if the IP address is an invalid IP address for LAN use, false otherwise.
+ */
+export function isInvalidIP(ip): boolean {
+  let ipArr
+  try {
+    ipArr = getIpArr(ip)
+  } catch (e) {
+    console.log(ip, e)
+    return true
+  }
+  return isReservedIP(ipArr)
+}
+
+/**
+ * Splits the given IP address into an array of numbers.
+ * @param ip The IP address to split.
+ * @returns An array of numbers representing the IP address.
+ * @throws An error if the IP address is invalid.
+ */
+function getIpArr(ip: string): number[] {
+  const slicedArr = ip.split('.')
+  if (slicedArr.length !== 4) {
+    throw new Error('Invalid IP address provided')
+  }
+
+  for (const number of slicedArr) {
+    const num = Number(number)
+    if (num.toString() !== number) {
+      throw new Error('Leading zero detected. Invalid IP address')
+    }
+    if (num < 0 || num > 255) {
+      throw new Error('Invalid IP address provided')
+    }
+  }
+  // Change to numbers Array
+  const numArray = [Number(slicedArr[0]), Number(slicedArr[1]), Number(slicedArr[2]), Number(slicedArr[3])]
+  return numArray
+}
+
+/**
+ * Checks whether the given IP address is a private IP address.
+ * @param ip The IP address to check.
+ * @returns True if the IP address is a private IP address, false otherwise.
+ */
+function isPrivateIP(ip): boolean {
+  return (
+    // 10.0.0.0/8  Private-use networks
+    ip[0] === 10 ||
+    // 100.64.0.0/10 Carrier-grade NAT
+    (ip[0] === 100 && ip[1] >= 64 && ip[1] <= 127) ||
+    // 127.0.0.0/8 Loopback + Name collision occurrence (127.0.53.53)
+    ip[0] === 127 ||
+    // 169.254.0.0/16  Link local
+    (ip[0] === 169 && ip[1] === 254) ||
+    // 172.16.0.0/12 Private-use networks
+    (ip[0] === 172 && ip[1] >= 16 && ip[1] <= 31) ||
+    // 192.168.0.0/16  Private-use networks
+    (ip[0] === 192 && ip[1] === 168)
+  )
+}
+
+/**
+ * Checks whether the given IP address is a reserved IP address.
+ * @param ip The IP address to check.
+ * @returns True if the IP address is a reserved IP address, false otherwise.
+ */
+function isReservedIP(ip): boolean {
+  return (
+    // 0.0.0.0/8 "This" network
+    ip[0] === 0 ||
+    // 192.0.0.0/24  IETF protocol assignments
+    (ip[0] === 192 && ip[1] === 0 && ip[2] === 0) ||
+    // 192.0.2.0/24  TEST-NET-1
+    (ip[0] === 192 && ip[1] === 0 && ip[2] === 2) ||
+    // 198.18.0.0/15 Network interconnect device benchmark testing
+    (ip[0] === 198 && ip[1] >= 18 && ip[1] <= 19) ||
+    // 198.51.100.0/24 TEST-NET-2
+    (ip[0] === 198 && ip[1] === 51 && ip[2] === 100) ||
+    // 203.0.113.0/24  TEST-NET-3
+    (ip[0] === 203 && ip[1] === 0 && ip[2] === 113) ||
+    // 224.0.0.0/4 Multicast
+    (ip[0] >= 224 && ip[0] <= 239) ||
+    // 240.0.0.0/4 Reserved for future use
+    ip[0] >= 240 ||
+    // 255.255.255.255/32
+    (ip[0] === 255 && ip[1] === 255 && ip[2] === 255 && ip[3] === 255)
+  )
+}
+// function is0Network(ip) {
+//   return (
+//     // 0.0.0.0/8 "This" network
+//     ip[0] === 0 ||
+//     ip[0] === 127
+//   )
+// }
