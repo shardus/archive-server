@@ -30,6 +30,7 @@ export interface Config {
   experimentalSnapshot: boolean
   VERBOSE: boolean
   useSerialization: boolean
+  forceBogonFilteringOn: boolean,
 }
 
 let config: Config = {
@@ -59,6 +60,7 @@ let config: Config = {
   experimentalSnapshot: true,
   VERBOSE: false,
   useSerialization: false,
+  forceBogonFilteringOn: false, //should turn this on for releases or dev testing
 }
 
 export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args: string[]) {
