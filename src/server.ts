@@ -33,6 +33,9 @@ import { startSaving } from './saveConsoleOutput'
 // Socket modules
 let io: SocketIO.Server
 
+// State
+export let allowBogon:boolean = false
+
 // Override default config params from config file, env vars, and cli args
 const file = join(process.cwd(), 'archiver-config.json')
 const env = process.env
@@ -359,6 +362,40 @@ export const isDebugMiddleware = (_req, res) => {
 async function startServer() {
   const server: FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
     logger: false,
+    trustProxy: true,
+  })
+  // Checks if the IP of the client is a bogon IP. If it is, the request is rejected.
+  server.addHook('preHandler', async (request, reply) => {
+    // Get the IP of the client.
+    const ip = request.ip;
+
+    // Check if it's an IPv6.
+    if (Utils.isIPv6(ip)) {
+      console.warn('Got request from IPv6'); // Logging the warning
+      // Assuming nestedCountersInstance is accessible and countEvent is a valid method
+      nestedCountersInstance.countEvent('consensor', `join-reject-ipv6`);
+      reply.code(403).send({ success: false, reason: `Bad ip version, IPv6 are not accepted`, fatal: true });
+    }
+    try {
+      if(allowBogon === false)  {
+        // Check if it's a bogon IP.
+        if (Utils.isBogonIP(ip)) {
+          nestedCountersInstance.countEvent('consensor', `join-reject-bogon`)
+          reply.code(403).send(new Error('Forbidden'));
+        }
+      } else {
+        // Check if it's an invalid or reserved IP.
+        if (Utils.isInvalidIP(ip)) {
+          console.warn('Got request from invalid reserved IP'); // Logging the warning
+          // Assuming nestedCountersInstance is accessible and countEvent is a valid method
+          nestedCountersInstance.countEvent('consensor', `join-reject-reserved`);
+          reply.code(403).send({ success: false, reason: `Bad ip, reserved ip not accepted`, fatal: true });
+        }
+      }
+
+    } catch (er) {
+      nestedCountersInstance.countEvent('consensor', `join-reject-bogon-ex:${er}`)
+    }
   })
 
   await server.register(fastifyCors)
