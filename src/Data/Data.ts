@@ -41,6 +41,7 @@ let selectByConsensuRadius = true
 let selectingNewDataSender = false
 export let queueForSelectingNewDataSenders: Map<string, string> = new Map()
 let receivedCycleTracker = {}
+let allowBogon:boolean = false
 
 export enum DataRequestTypes {
   SUBSCRIBE = 'SUBSCRIBE',
@@ -832,12 +833,46 @@ export async function submitJoin(
   nodes: NodeList.ConsensusNodeInfo[],
   joinRequest: P2P.ArchiverJoinRequest & Crypto.types.SignedObject
 ) {
-  // Send the join request to a handful of the active node all at once:w
+  // Send the join request to a handful of the active node all at once
   const selectedNodes = Utils.getRandom(nodes, Math.min(nodes.length, 5))
   Logger.mainLogger.debug(`Sending join request to ${selectedNodes.map((n) => `${n.ip}:${n.port}`)}`)
+
   for (const node of selectedNodes) {
+    const ip = node.ip;
+
+    if (config.forceBogonFilteringOn === false) {
+      allowBogon = false;
+    }
+
+    // Check if it's an IPv6.
+    if (Utils.isIPv6(ip)) {
+      Logger.mainLogger.warn('Got request from IPv6'); // Logging the warning
+      nestedCountersInstance.countEvent('p2p', `join-reject-ipv6`);
+      continue; // Skip this iteration and move to the next node.
+    }
+    
+    try {
+      if (allowBogon === false) {
+        // Check if it's a bogon IP.
+        if (Utils.isBogonIP(ip)) {
+          nestedCountersInstance.countEvent('p2p', `join-reject-bogon`);
+          continue; // Skip this iteration and move to the next node.
+        }
+      } else {
+        // Check if it's an invalid or reserved IP.
+        if (Utils.isInvalidIP(ip)) {
+          Logger.mainLogger.warn('Got request from invalid reserved IP'); // Logging the warning
+          nestedCountersInstance.countEvent('p2p', `join-reject-reserved`);
+          continue; // Skip this iteration and move to the next node.
+        }
+      }
+    } catch (er) {
+      nestedCountersInstance.countEvent('p2p', `join-reject-bogon-ex:${er}`);
+    }
+
+    // Send join request to the node if it has passed all the checks.
     let response = await P2P.postJson(`http://${node.ip}:${node.port}/joinarchiver`, joinRequest)
-    Logger.mainLogger.debug('Join request response:', response)
+    Logger.mainLogger.debug('Join request response:', response);
   }
 }
 
