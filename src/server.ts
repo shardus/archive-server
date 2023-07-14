@@ -377,14 +377,14 @@ async function startServer() {
     if (Utils.isIPv6(ip)) {
       console.warn('Got request from IPv6'); // Logging the warning
       // Assuming nestedCountersInstance is accessible and countEvent is a valid method
-      nestedCountersInstance.countEvent('p2p', `join-reject-ipv6`);
+      nestedCountersInstance.countEvent('server', `join-reject-ipv6`);
       reply.code(403).send({ success: false, reason: `Bad ip version, IPv6 are not accepted`, fatal: true });
     }
     try {
       if(allowBogon === false)  {
         // Check if it's a bogon IP.
         if (Utils.isBogonIP(ip)) {
-          nestedCountersInstance.countEvent('p2p', `join-reject-bogon`)
+          nestedCountersInstance.countEvent('server', `join-reject-bogon`)
           reply.code(403).send(new Error('Forbidden'));
         }
       } else {
@@ -392,13 +392,13 @@ async function startServer() {
         if (Utils.isInvalidIP(ip)) {
           console.warn('Got request from invalid reserved IP'); // Logging the warning
           // Assuming nestedCountersInstance is accessible and countEvent is a valid method
-          nestedCountersInstance.countEvent('p2p', `join-reject-reserved`);
+          nestedCountersInstance.countEvent('server', `join-reject-reserved`);
           reply.code(403).send({ success: false, reason: `Bad ip, reserved ip not accepted`, fatal: true });
         }
       }
 
     } catch (er) {
-      nestedCountersInstance.countEvent('p2p', `join-reject-bogon-ex:${er}`)
+      nestedCountersInstance.countEvent('server', `join-reject-bogon-ex:${er}`)
     }
   })
 
