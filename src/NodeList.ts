@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
 import * as Crypto from './Crypto'
 import { config } from './Config'
+import { nestedCountersInstance } from './profiler/nestedCounters'
 
 // TYPES
 
@@ -48,6 +49,7 @@ export const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
 const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export const byId: { [id: string]: ConsensusNodeInfo } = {}
 const publicKeyToId: { [publicKey: string]: string } = {}
+let allowBogon = false;
 
 export type SignedNodeList = {
   nodeList: ConsensusNodeInfo[]
@@ -82,6 +84,23 @@ export function addNodes(
   Logger.mainLogger.debug('Nodes to add', nodes)
   for (const node of nodes) {
     const ipPort = getIpPort(node)
+
+    // CONFIG
+    if (config.forceBogonFilteringOn === false) {
+      allowBogon = true;
+    }
+
+    // Check if it's an IPv6, Bogon IP (unless allowBogon is true), or invalid IP address and skip it it
+    if ((Utils.isIPv6(ipPort) || Utils.isBogonIP(ipPort) && !allowBogon || Utils.isInvalidIP(ipPort))) {
+      if (Utils.isBogonIP(ipPort)) {
+        Logger.mainLogger.warn(`Skipping Bogon IP: ${ipPort}`);
+        nestedCountersInstance.countEvent('node-list', `join-reject-bogon`);
+      } else {
+        Logger.mainLogger.warn('Skipping node:', ipPort, 'due to invalid IP address.');
+        nestedCountersInstance.countEvent('node-list', `join-reject-invalid-ip`);
+      }
+      continue;
+    }
 
     // If node not in lists, add it
     if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
