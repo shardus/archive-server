@@ -74,6 +74,31 @@ export function isEmpty(): boolean {
   return list.length <= 0
 }
 
+function skipBogonOrInvalidIP(ipPort: string): boolean {
+  // CONFIG
+  if (config.forceBogonFilteringOn === false) {
+    allowBogon = true;
+  }
+
+  // Check if it's an IPv6, Bogon IP (unless allowBogon is true), or invalid IP address and skip it
+  if (
+    Utils.isIPv6(ipPort) ||
+    (Utils.isBogonIP(ipPort) && !allowBogon) ||
+    Utils.isInvalidIP(ipPort)
+  ) {
+    if (Utils.isBogonIP(ipPort)) {
+      Logger.mainLogger.warn(`Skipping Bogon IP: ${ipPort}`);
+      nestedCountersInstance.countEvent('node-list', `join-reject-bogon`);
+    } else {
+      Logger.mainLogger.warn('Skipping node:', ipPort, 'due to invalid IP address.');
+      nestedCountersInstance.countEvent('node-list', `join-reject-invalid-ip`);
+    }
+    return true;
+  }
+
+  return false;
+}
+
 export function addNodes(
   status: Statuses,
   cycleMarkerJoined: string,
@@ -85,22 +110,11 @@ export function addNodes(
   for (const node of nodes) {
     const ipPort = getIpPort(node)
 
-    // CONFIG
-    if (config.forceBogonFilteringOn === false) {
-      allowBogon = true;
+    //Skips nodes with invalid or bogon IP addresses.
+    if (skipBogonOrInvalidIP(ipPort)) {
+      continue; //Skip this node.
     }
 
-    // Check if it's an IPv6, Bogon IP (unless allowBogon is true), or invalid IP address and skip it it
-    if ((Utils.isIPv6(ipPort) || Utils.isBogonIP(ipPort) && !allowBogon || Utils.isInvalidIP(ipPort))) {
-      if (Utils.isBogonIP(ipPort)) {
-        Logger.mainLogger.warn(`Skipping Bogon IP: ${ipPort}`);
-        nestedCountersInstance.countEvent('node-list', `join-reject-bogon`);
-      } else {
-        Logger.mainLogger.warn('Skipping node:', ipPort, 'due to invalid IP address.');
-        nestedCountersInstance.countEvent('node-list', `join-reject-invalid-ip`);
-      }
-      continue;
-    }
 
     // If node not in lists, add it
     if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
@@ -153,6 +167,11 @@ export function refreshNodes(
   Logger.mainLogger.debug('Nodes to refresh', nodes)
   for (const node of nodes) {
     const ipPort = getIpPort(node)
+    
+    //Skips nodes with invalid or bogon IP addresses.
+    if (skipBogonOrInvalidIP(ipPort)) {
+      continue; //Skip this node.
+    }
 
     // If node not in lists, add it
     if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
