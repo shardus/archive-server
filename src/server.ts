@@ -152,6 +152,34 @@ function initProfiler(server: FastifyInstance) {
   profiler.registerEndpoints()
 }
 
+function verifyIP(ip: string): boolean {
+  // Helper function to log and count
+  const logAndCount = (message: string, event: string): false => {
+    Logger.mainLogger.warn('Skipping archiver:', ip, message);
+    nestedCountersInstance.countEvent('data-sync', event);
+    return false;
+  }
+
+  if (config.forceBogonFilteringOn === false) {
+    allowBogon = true;
+  }
+
+  if (Utils.isIPv6(ip)) {
+    return logAndCount('due to being IPv6.', 'join-reject-IPv6');
+  }
+
+  if (allowBogon === false && Utils.isBogonIP(ip)) {
+    return logAndCount('due to being a bogon IP.', 'join-reject-bogon');
+  }
+
+  if (Utils.isInvalidIP(ip)) {
+    return logAndCount('due to invalid IP address.', 'join-reject-invalid-ip');
+  }
+
+  return true;
+}
+
+
 async function syncAndStartServer() {
   // Validate data if there is any in db
   let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
@@ -160,6 +188,12 @@ async function syncAndStartServer() {
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
   let lastStoredReceiptCycle = 0
   let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 10)
+
+  // Verify the IP
+  if (verifyIP(randomArchiver.ip) === false) {
+    throw new Error(`Invalid archiver IP: ${randomArchiver.ip}`);
+  }
+
   if (
     !response ||
     response.totalCycles < 0 ||
@@ -224,6 +258,9 @@ async function syncAndStartServer() {
   do {
     try {
       const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
+      if (verifyIP(randomArchiver.ip) === false) {
+        throw new Error(`Invalid archiver IP: ${randomArchiver.ip}`);
+      }
       // Get active nodes from Archiver
       const nodeList: any = await NodeList.getActiveNodeListFromArchiver(randomArchiver)
       if (nodeList.length === 0) continue
@@ -370,7 +407,7 @@ async function startServer() {
     const ip = request.ip;
 
     if (config.forceBogonFilteringOn === false) {
-      allowBogon = false
+      allowBogon = true
     }
 
     // Check if it's an IPv6.
