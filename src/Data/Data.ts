@@ -841,7 +841,7 @@ export async function submitJoin(
     const ip = node.ip;
 
     if (config.forceBogonFilteringOn === false) {
-      allowBogon = false;
+      allowBogon = true;
     }
 
     // Check if it's an IPv6.
@@ -856,14 +856,14 @@ export async function submitJoin(
         // Check if it's a bogon IP.
         if (Utils.isBogonIP(ip)) {
           nestedCountersInstance.countEvent('p2p', `join-reject-bogon`);
-          continue; // Skip this iteration and move to the next node.
+          continue; 
         }
       } else {
         // Check if it's an invalid or reserved IP.
         if (Utils.isInvalidIP(ip)) {
           Logger.mainLogger.warn('Got request from invalid reserved IP'); // Logging the warning
           nestedCountersInstance.countEvent('p2p', `join-reject-reserved`);
-          continue; // Skip this iteration and move to the next node.
+          continue; 
         }
       }
     } catch (er) {
