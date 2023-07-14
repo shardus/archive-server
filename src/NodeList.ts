@@ -49,7 +49,7 @@ export const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
 const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export const byId: { [id: string]: ConsensusNodeInfo } = {}
 const publicKeyToId: { [publicKey: string]: string } = {}
-let allowBogon = false;
+let allowBogon:boolean = false;
 
 export type SignedNodeList = {
   nodeList: ConsensusNodeInfo[]
