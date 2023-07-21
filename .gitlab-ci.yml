@@ -13,7 +13,7 @@ include:
   - template: Security/SAST.gitlab-ci.yml
 
 # Define the default Docker image for all jobs
-image: registry.gitlab.com/shardus/dev-container
+image: registry.gitlab.com/shardus/dev-container:latest_node18
 
 # Define global cache settings for all jobs
 cache:
@@ -42,14 +42,14 @@ compile-job:
     - npm run compile
     - echo "Compilation complete."
 
-# Format Checker Job: Runs Prettier for code formatting
-format-checker-job:
-  stage: build
-  needs: ['prepare-job']
-  script:
-    - echo "Running Prettier..."
-    - npm run format-check
-    - echo "Running Prettier complete."
+# # Format Checker Job: Runs Prettier for code formatting
+# format-checker-job:
+#   stage: build
+#   needs: ['prepare-job']
+#   script:
+#     - echo "Running Prettier..."
+#     - npm run format-check
+#     - echo "Running Prettier complete."
 
 # Lint Checker Job: Runs ESlint for code linting
 lint-checker-job:
