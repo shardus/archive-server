@@ -31,7 +31,10 @@ stages:
 prepare-job:
   stage: prepare
   script:
+    - echo "Installing dependencies..."
+    - apt-get update
     - npm ci
+    - echo "Dependencies installed."
 
 # Build Job: Compiles the code
 compile-job:
