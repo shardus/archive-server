@@ -58,7 +58,7 @@ let config: Config = {
   experimentalSnapshot: true,
   VERBOSE: false,
   useSerialization: false,
-  useSyncV2: false,
+  useSyncV2: true,
 }
 
 export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args: string[]) {
