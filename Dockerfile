@@ -1,24 +1,22 @@
-# Node.js LTS 10.x.x from Docker Hub
-FROM node:16.11.1
+# syntax=docker/dockerfile:1
 
-# Create app directory
-WORKDIR /usr/src/app
+## global args
+ARG NODE_VERSION=18.16.1
+ARG NODE_ENV=production
 
-# Install app dependencies
-# A wildcard is used to ensure both package.json AND package-lock.json are copied
-# where available (npm@5+)
-COPY package*.json ./
+FROM node:${NODE_VERSION}
+SHELL [ "/bin/bash", "-cex" ]
 
-# Bundle app source
+## ENVs
+ENV NODE_ENV=${NODE_ENV}
+
+WORKDIR /app
+
 COPY . .
 
-# Install node_modules
-RUN npm set unsafe-perm true
-RUN npm install
+RUN \
+  --mount=type=cache,target=/root/.cache \
+  --mount=type=cache,target=/root/.npm \
+  npm install
 
-# Expose ports for app to bind to
-# Note: ports can be exposed at runtime too with --expose or -p <port>:<port>
-# EXPOSE 4000
-
-# Define run command
-CMD [ "node", "build/server.js" ]
+ENTRYPOINT [ "node", "build/server.js" ]

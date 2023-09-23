@@ -1,0 +1,22 @@
+---
+version: '3'
+services:
+  archiver:
+    image: shardus/archiver:dev
+    build:
+      context: .
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./archiver-db:/app/archiver-db
+      - ./archiver-logs:/app/archiver-logs
+    configs:
+      - source: archiver-config
+        target: /app/archiver-config.json
+      - source: archiver-log
+        target: /app/archiver-log.json
+configs:
+  archiver-config:
+    file: ./archiver-config.json
+  archiver-log:
+    file: ./archiver-log.json
