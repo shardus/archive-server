@@ -590,6 +590,9 @@ async function startServer() {
       // Add first node to NodeList
       NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
 
+      // Update the real update time of the NodeList
+      NodeList.realUpdatedTimes.set('/nodelist', Date.now());
+
       // Set first node as dataSender
       const firstDataSender: Data.DataSender = {
         nodeInfo: firstNode,
