@@ -223,7 +223,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
                 }
               }
               // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
-              let maxEqual = 3 // Setting as 3 for now
+              let maxEqual = 1 // Setting as 3 for now
               if (cycle.active < 10) maxEqual = 1
               for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
                 if (value['saved']) break
@@ -241,7 +241,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
               }
               receivedCycleTracker[cycle.counter] = byCycleMarker
               // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
-              let maxEqual = 3 // Setting as 3 for now
+              let maxEqual = 1 // Setting as 3 for now
               if (cycle.active < 10) maxEqual = 1
               for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
                 if (value['saved']) break
