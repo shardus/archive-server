@@ -48,7 +48,7 @@ export const activeList: Map<string, ConsensusNodeInfo> = new Map()
 export let activeListByIdSorted: ConsensusNodeInfo[] = []
 export const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
 const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
-export const byId: { [id: string]: JoinedConsensor } = {}
+export const byId: { [id: string]: ConsensusNodeInfo } = {}
 const publicKeyToId: { [publicKey: string]: string } = {}
 
 export type SignedNodeList = {
@@ -74,10 +74,10 @@ export function isEmpty(): boolean {
   return list.length <= 0
 }
 
-export function addNodes<N extends ConsensusNodeInfo>(
+export function addNodes(
   status: Statuses,
   cycleMarkerJoined: string,
-  nodes: N[]
+  nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ) {
   Logger.mainLogger.debug('Typeof Nodes to add', typeof nodes)
   Logger.mainLogger.debug('Length of Nodes to add', nodes.length)
@@ -110,7 +110,7 @@ export function addNodes<N extends ConsensusNodeInfo>(
       if (entry) {
         entry.id = node.id
         publicKeyToId[node.publicKey] = node.id
-        byId[node.id] = Object.assign(byId[node.id], node)
+        byId[node.id] = node
       }
     }
 
@@ -161,7 +161,7 @@ export function refreshNodes(
       if (entry) {
         entry.id = node.id
         publicKeyToId[node.publicKey] = node.id
-        byId[node.id] = Object.assign(byId[node.id], node)
+        byId[node.id] = node
       }
     }
   }
