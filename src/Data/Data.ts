@@ -3,7 +3,7 @@ import * as Crypto from '../Crypto'
 import * as NodeList from '../NodeList'
 import * as Cycles from './Cycles'
 import {
-  currentCycleCounter,
+  getCurrentCycleCounter,
   currentCycleDuration,
   Cycle,
   processCycles,
@@ -263,7 +263,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           }
           if (Object.keys(receivedCycleTracker).length > 10) {
             for (const counter of Object.keys(receivedCycleTracker)) {
-              if (parseInt(counter) < currentCycleCounter - 5) {
+              if (parseInt(counter) < getCurrentCycleCounter() - 5) {
                 let totalTimes = 0
                 let logCycle = false
                 // If there is more than one marker for this cycle, output the cycle log
@@ -564,7 +564,7 @@ export async function sendDataRequest(
   dataRequestType: DataRequestTypes
 ) {
   const dataRequest = {
-    dataRequestCycle: currentCycleCounter,
+    dataRequestCycle: getCurrentCycleCounter(),
     dataRequestType,
     publicKey: State.getNodeInfo().publicKey,
     nodeInfo: State.getNodeInfo(),
