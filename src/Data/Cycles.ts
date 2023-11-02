@@ -19,6 +19,7 @@ import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers } from './GossipTxData'
 import { storeCycleData } from './Collector'
 import { hexstring } from 'shardus-crypto-types'
+import { handleLostArchivers } from '../LostArchivers'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -41,28 +42,33 @@ export const removedNodes = []
 
 export async function processCycles(cycles: Cycle[]) {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
-  if (nestedCountersInstance) nestedCountersInstance.countEvent('cycle', 'process', 1)
-  for (const cycle of cycles) {
-    // Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
-    // Skip if already processed [TODO] make this check more secure
-    if (cycle.counter <= currentCycleCounter) continue
-    Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
+  try {
+    if (nestedCountersInstance) nestedCountersInstance.countEvent('cycle', 'process', 1)
+    for (const cycle of cycles) {
+      // Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
+      // Skip if already processed [TODO] make this check more secure
+      if (cycle.counter <= currentCycleCounter) continue
+      Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
 
-    // Update currentCycle state
-    currentCycleDuration = cycle.duration * 1000
-    currentCycleCounter = cycle.counter
+      // Update currentCycle state
+      currentCycleDuration = cycle.duration * 1000
+      currentCycleCounter = cycle.counter
 
-    // Update NodeList from cycle info
-    updateNodeList(cycle)
-    await storeCycleData([cycle])
-    getAdjacentLeftAndRightArchivers()
+      // Update NodeList from cycle info
+      updateNodeList(cycle)
+      handleLostArchivers(cycle)
 
-    Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
+      await storeCycleData([cycle])
+      getAdjacentLeftAndRightArchivers()
 
-    // Check the archivers reputaion in every new cycle & record the status
-    await recordArchiversReputation()
+      Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
+
+      // Check the archivers reputaion in every new cycle & record the status
+      await recordArchiversReputation()
+    }
+  } finally {
+    if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
   }
-  if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
 
 export function getCurrentCycleCounter(): number {
