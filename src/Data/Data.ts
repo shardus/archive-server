@@ -1081,7 +1081,7 @@ export async function syncCyclesAndNodeList(lastStoredCycleCount: number = 0) {
       // Stop prepending prevCycles if one of them is invalid
       if (validateCycle(prevCycle, CycleChain[0]) === false) {
         Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
-        break
+        // break
       }
       // Prepend the cycle to our cycle chain
       CycleChain.unshift(prevCycle)
@@ -1149,7 +1149,7 @@ export async function syncCyclesAndNodeList(lastStoredCycleCount: number = 0) {
       if (validateCycle(prevCycle, savedCycleRecord) === false) {
         Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
         Logger.mainLogger.debug('fail', prevCycle, savedCycleRecord)
-        break
+        // break
       }
       savedCycleRecord = prevCycle
       combineCycles.push(prevCycle)
@@ -1967,7 +1967,7 @@ async function downloadOldCycles(
       if (validateCycle(prevCycle, savedCycleRecord) === false) {
         Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
         Logger.mainLogger.debug('fail', prevCycle, savedCycleRecord)
-        break
+        // break
       }
       savedCycleRecord = prevCycle
       combineCycles.push(prevCycle)
