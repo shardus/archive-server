@@ -86,7 +86,10 @@ export class MonitorCache {
     try {
       const response = await fetch(`http://${config.MONITOR_IP}:${config.MONITOR_PORT}/api/report`, {
         method: 'get',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.jwtToken}`
+        },
         timeout: 5000,
       }).then((res) => res.json())
       const activeNodes = this.mapNodeData(response.nodes.active);
