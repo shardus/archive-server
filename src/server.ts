@@ -36,6 +36,7 @@ import * as Collector from './Data/Collector'
 import * as GossipTxData from './Data/GossipTxData'
 const { version } = require('../package.json')
 import { getGlobalAccount } from './GlobalAccount'
+import { MonitorCache } from "./MonitorCache";
 
 // Socket modules
 let io: SocketIO.Server
@@ -635,11 +636,16 @@ async function startServer() {
     profilerInstance.profileSectionEnd('POST_nodelist')
   })
 
-  server.get('/nodelist', (_request, reply) => {
+  server.get('/nodelist', async (_request, reply) => {
     profilerInstance.profileSectionStart('GET_nodelist')
     nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
 
-    const nodeList = getCachedNodeList()
+    let nodeList
+    if (config.MONITOR_NODE_LIST_MODE) {
+      nodeList = await MonitorCache.getInstance().getActiveNodes()
+    } else {
+      nodeList = getCachedNodeList()
+    }
     profilerInstance.profileSectionEnd('GET_nodelist')
 
     reply.send(nodeList)
@@ -656,12 +662,21 @@ async function startServer() {
         isDebugMiddleware(_request, reply)
       },
     },
-    (_request: FullNodeListRequest, reply) => {
+    async (_request: FullNodeListRequest, reply) => {
       profilerInstance.profileSectionStart('FULL_nodelist')
       nestedCountersInstance.countEvent('consensor', 'FULL_nodelist')
       const { activeOnly, syncingOnly } = _request.query
-      const activeNodeList = NodeList.getActiveList()
-      const syncingNodeList = NodeList.getSyncingList()
+      let activeNodeList: NodeList.ConsensusNodeInfo[]
+      let syncingNodeList: NodeList.ConsensusNodeInfo[]
+
+      if (config.MONITOR_NODE_LIST_MODE) {
+        activeNodeList = await MonitorCache.getInstance().getActiveNodes()
+        syncingNodeList = await MonitorCache.getInstance().getSyncingNodes()
+      } else {
+        activeNodeList = NodeList.getActiveList()
+        syncingNodeList = NodeList.getSyncingList()
+      }
+
       if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
       else if (syncingOnly === 'true') reply.send(Crypto.sign({ nodeList: syncingNodeList }))
       else {

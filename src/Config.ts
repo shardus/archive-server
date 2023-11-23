@@ -12,6 +12,11 @@ export interface Config {
   ARCHIVER_PUBLIC_KEY: string
   ARCHIVER_SECRET_KEY: string
   ARCHIVER_DB: string
+  MONITOR_IP?: string,
+  MONITOR_PORT?: number,
+  MONITOR_NODE_LIST_MODE?: boolean
+  MONITOR_USERNAME?: string
+  MONITOR_PASSWORD?: string
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
   N_NODE_REJECT_PERCENT: number
