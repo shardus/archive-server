@@ -495,6 +495,17 @@ async function startServer() {
   // Initialize the data log writer
   if (config.dataLogWrite) await initDataLogWriter()
 
+  const pickRandomNodes = (nodes: NodeList.ConsensusNodeInfo[], count: number): NodeList.ConsensusNodeInfo[] => {
+    // Shuffle array using the Fisher-Yates algorithm
+    for (let i = nodes.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [nodes[i], nodes[j]] = [nodes[j], nodes[i]];
+    }
+
+    // Return the first 'count' elements of the shuffled array
+    return nodes.slice(0, count);
+  }
+
   /**
    * Check the cache for the node list, if it's hot, return it. Otherwise,
    * rebuild the cache and return the node list.
@@ -643,9 +654,10 @@ async function startServer() {
     let nodeList
     if (config.MONITOR_NODE_LIST_MODE) {
       const activeNodes = await MonitorCache.getInstance().getActiveNodes()
+      const randomNodes = pickRandomNodes(activeNodes, config.N_NODELIST);
       const byAscendingNodeId = (a: NodeList.ConsensusNodeInfo, b: NodeList.ConsensusNodeInfo) =>
         a.id > b.id ? 1 : -1
-      const sortedNodeList = activeNodes.sort(byAscendingNodeId)
+      const sortedNodeList = randomNodes.sort(byAscendingNodeId)
       nodeList = Crypto.sign({nodeList: sortedNodeList})
     } else {
       nodeList = getCachedNodeList()
