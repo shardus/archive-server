@@ -19,6 +19,8 @@ export interface ConsensusNodeInfo {
   port: number
   publicKey: string
   id?: string
+  externalIp?: string
+  externalPort?: number
 }
 
 export interface ConsensusNodeMetadata {

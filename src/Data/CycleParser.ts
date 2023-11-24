@@ -1,6 +1,5 @@
 import * as NodeList from '../NodeList'
 import { JoinedConsensor } from '../NodeList'
-import { Cycle } from './Cycles'
 import { P2P } from '@shardus/types'
 
 export enum NodeStatus {
@@ -24,12 +23,24 @@ export interface Change {
   updated: Update[] // order doesn't matter
 }
 
-export function reversed<T>(thing: Iterable<T>) {
+export interface Record {
+  start: number
+  counter: number
+  joinedConsensors: JoinedConsensor[]
+  refreshedConsensors: JoinedConsensor[]
+  activated: string[]
+  apoptosized: string[]
+  removed: string[]
+}
+
+export function reversed<T>(thing: Iterable<T>): Iterable<T> {
   const arr = Array.isArray(thing) ? thing : Array.from(thing)
   let i = arr.length - 1
+
   const reverseIterator = {
-    next: () => {
+    next: (): IteratorResult<T> => {
       const done = i < 0
+      // eslint-disable-next-line security/detect-object-injection
       const value = done ? undefined : arr[i]
       i--
       return { value, done }
@@ -56,7 +67,7 @@ export class ChangeSquasher {
     this.seenUpdates = new Map()
   }
 
-  addChange(change: Change) {
+  addChange(change: Change): void {
     for (const id of change.removed) {
       // Ignore if id is already removed
       if (this.removedIds.has(id)) continue
@@ -97,7 +108,7 @@ export class ChangeSquasher {
   }
 }
 
-export function parseRecord(record: any): Change {
+export function parseRecord(record: Record): Change {
   // For all nodes described by activated, make an update to change their status to active
   const activated = record.activated.map((id: string) => ({
     id,
@@ -144,20 +155,20 @@ export function parseRecord(record: any): Change {
   }
 }
 
-export function parse(record: any): Change {
+export function parse(record: Record): Change {
   const changes = parseRecord(record)
   // const mergedChange = deepmerge.all<Change>(changes)
   // return mergedChange
   return changes
 }
 
-export function applyNodeListChange(change: Change) {
+export function applyNodeListChange(change: Change): void {
   // console.log('change', change)
   if (change.added.length > 0) {
-    let nodesBycycleJoined: { [cycleJoined: number]: JoinedConsensor[] } = {}
+    const nodesBycycleJoined: { [cycleJoined: number]: JoinedConsensor[] } = {}
     for (const node of change.added) {
-      const joinedConsensor: any = node
-      const consensorInfo: any = {
+      const joinedConsensor: JoinedConsensor = node
+      const consensorInfo: object = {
         ip: joinedConsensor.externalIp,
         port: joinedConsensor.externalPort,
         publicKey: joinedConsensor.publicKey,
@@ -167,7 +178,9 @@ export function applyNodeListChange(change: Change) {
         nodesBycycleJoined[joinedConsensor.cycleJoined] = [consensorInfo]
       } else nodesBycycleJoined[joinedConsensor.cycleJoined].push(consensorInfo)
     }
-    for (let cycleJoined in nodesBycycleJoined) {
+
+    for (const cycleJoined in nodesBycycleJoined) {
+      // eslint-disable-next-line security/detect-object-injection
       NodeList.addNodes(NodeList.NodeStatus.SYNCING, cycleJoined, nodesBycycleJoined[cycleJoined])
     }
   }
@@ -188,7 +201,7 @@ export function applyNodeListChange(change: Change) {
     NodeList.setStatus(NodeList.NodeStatus.ACTIVE, activatedPublicKeys)
   }
 }
-export function activeNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord) {
+export function activeNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord): number {
   return (
     cycle.active +
     cycle.activated.length +
@@ -198,7 +211,7 @@ export function activeNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord) {
   )
 }
 
-export function totalNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord) {
+export function totalNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord): number {
   return (
     cycle.syncing +
     cycle.joinedConsensors.length +
