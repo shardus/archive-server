@@ -58,16 +58,15 @@ export class MonitorCache {
   }
 
   private mapNodeData(data: any): ConsensusNodeInfo[] {
-    const activeNodes = data.nodes.active;
     const consensusNodes: ConsensusNodeInfo[] = [];
 
-    for (const nodeId in activeNodes) {
-      if (activeNodes.hasOwnProperty(nodeId)) {
-        const node = activeNodes[nodeId];
+    for (const nodeId in data) {
+      if (data.hasOwnProperty(nodeId)) {
+        const node = data[nodeId];
         consensusNodes.push({
           ip: node.nodeIpInfo.externalIp,
           port: node.nodeIpInfo.externalPort,
-          publicKey: '', // As publicKey is not present in the data, it's initialized to an empty string.
+          publicKey: '',
           id: nodeId,
         });
       }

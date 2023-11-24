@@ -642,7 +642,11 @@ async function startServer() {
 
     let nodeList
     if (config.MONITOR_NODE_LIST_MODE) {
-      nodeList = await MonitorCache.getInstance().getActiveNodes()
+      const activeNodes = await MonitorCache.getInstance().getActiveNodes()
+      const byAscendingNodeId = (a: NodeList.ConsensusNodeInfo, b: NodeList.ConsensusNodeInfo) =>
+        a.id > b.id ? 1 : -1
+      const sortedNodeList = activeNodes.sort(byAscendingNodeId)
+      nodeList = Crypto.sign({nodeList: sortedNodeList})
     } else {
       nodeList = getCachedNodeList()
     }
