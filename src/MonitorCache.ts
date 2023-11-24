@@ -78,7 +78,7 @@ export class MonitorCache {
     await this.authenticate();
     await this.refreshData();
     if (!this.intervalId) {
-      this.intervalId = setInterval(() => this.refreshData(), this.REFRESH_INTERVAL * 60 * 1000);
+      this.intervalId = setInterval(() => this.refreshData(), this.REFRESH_INTERVAL);
     }
     this.initialized = true;
   }
@@ -97,8 +97,8 @@ export class MonitorCache {
       const syncingNodes = this.mapNodeData(response.nodes.syncing);
 
       await Promise.allSettled([
-        activeNodes.map(node => this.fetchNodeInfo(node)),
-        syncingNodes.map(node => this.fetchNodeInfo(node))]);
+          ...activeNodes.map(node => this.fetchNodeInfo(node)),
+          ...syncingNodes.map(node => this.fetchNodeInfo(node))]);
       this.activeNodeCache = activeNodes.map(node => ({
         ...node,
         publicKey: this.publicKeyMap.get(node.id) || ''
@@ -119,8 +119,8 @@ export class MonitorCache {
       try {
         const response = await fetch(`http://${node.ip}:${node.port}/nodeinfo`);
         if (!response.ok) throw new Error(`Failed to fetch node info for ${node.ip}:${node.port}`);
-        const nodeInfo: NodeInfo = await response.json();
-        this.publicKeyMap.set(node.id, nodeInfo.publicKey);
+        const data  = await response.json();
+        this.publicKeyMap.set(node.id, data.nodeInfo.publicKey);
       } catch (error) {
         console.error(`Error fetching node info for ${node.ip}:${node.port}`, error);
       }
