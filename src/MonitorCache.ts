@@ -27,6 +27,8 @@ export class MonitorCache {
     try {
       const response = await fetch(`http://${config.MONITOR_IP}:${config.MONITOR_PORT}/api/signin`,
         {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username: config.MONITOR_USERNAME,
             password: config.MONITOR_PASSWORD,
