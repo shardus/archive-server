@@ -812,30 +812,31 @@ export function checkJoinStatus(): Promise<boolean> {
   })
 }
 
-export function checkActiveStatus(): Promise<boolean> {
-  Logger.mainLogger.debug('Checking active status')
-  const ourNodeInfo = State.getNodeInfo()
-  const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
-  return new Promise(async (resolve) => {
-    const latestCycle = await getNewestCycleFromArchivers(randomArchivers)
-    try {
-      if (latestCycle && latestCycle.activeArchivers) {
-        let activeArchivers = latestCycle.activeArchivers
-        Logger.mainLogger.debug('cycle counter', latestCycle.counter)
-        Logger.mainLogger.debug('Active archivers', activeArchivers)
+//TODO check if this is needed since activeArchivers are not part of the cycleinfo
+// export function checkActiveStatus(): Promise<boolean> {
+//   Logger.mainLogger.debug('Checking active status')
+//   const ourNodeInfo = State.getNodeInfo()
+//   const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
+//   return new Promise(async (resolve) => {
+//     const latestCycle = await getNewestCycleFromArchivers(randomArchivers)
+//     try {
+//       if (latestCycle && latestCycle.activeArchivers) {
+//         let activeArchivers = latestCycle.activeArchivers
+//         Logger.mainLogger.debug('cycle counter', latestCycle.counter)
+//         Logger.mainLogger.debug('Active archivers', activeArchivers)
 
-        let isActive = activeArchivers.some((a: any) => a.publicKey === ourNodeInfo.publicKey)
-        Logger.mainLogger.debug('isActive', isActive)
-        resolve(isActive)
-      } else {
-        resolve(false)
-      }
-    } catch (e) {
-      Logger.mainLogger.error(e)
-      resolve(false)
-    }
-  })
-}
+//         let isActive = activeArchivers.some((a: any) => a.publicKey === ourNodeInfo.publicKey)
+//         Logger.mainLogger.debug('isActive', isActive)
+//         resolve(isActive)
+//       } else {
+//         resolve(false)
+//       }
+//     } catch (e) {
+//       Logger.mainLogger.error(e)
+//       resolve(false)
+//     }
+//   })
+// }
 
 export function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInfo[]): Promise<boolean> {
   Logger.mainLogger.debug('Checking join status from consenosr')

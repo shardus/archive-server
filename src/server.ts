@@ -424,7 +424,10 @@ async function syncAndStartServer() {
   let isActive = false
   while (!isActive) {
     await Data.sendActiveRequest()
-    isActive = await Data.checkActiveStatus()
+
+    // TODO not used for now
+    // isActive = await Data.checkActiveStatus()
+
     // Set as true for now, This needs to be removed after the active record for the archiver is added on the validator side
     isActive = true
   }
