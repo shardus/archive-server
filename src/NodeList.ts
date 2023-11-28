@@ -265,8 +265,8 @@ export async function getActiveListFromArchivers(
   function isSameCyceInfo(info1: any, info2: any) {
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
+    delete cm1['currentTime']
+    delete cm2['currentTime']
     const equivalent = isDeepStrictEqual(cm1, cm2)
     return equivalent
   }
