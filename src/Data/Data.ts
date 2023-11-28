@@ -206,8 +206,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
               newData.responses.ORIGINAL_TX_DATA.length
             )
           storeOriginalTxData(
-            newData.responses.ORIGINAL_TX_DATA,
-            sender.nodeInfo.ip + ':' + sender.nodeInfo.port
+            newData.responses.ORIGINAL_TX_DATA
           )
         }
         if (newData.responses && newData.responses.RECEIPT) {
@@ -1339,7 +1338,7 @@ export const downloadOriginalTxs = async (to: number, from: number = 0, archiver
     if (response && response.originalTxs) {
       const downloadedOriginalTxs = response.originalTxs
       Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
-      await storeOriginalTxData(downloadedOriginalTxs, archiver.ip + ':' + archiver.port, true)
+      await storeOriginalTxData(downloadedOriginalTxs, true)
       if (response.originalTxs.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
         let totalData: any = await P2P.getJson(
           `http://${archiver.ip}:${archiver.port}/totalData`,
@@ -1585,7 +1584,6 @@ export const syncOriginalTxsByCycle = async (
           Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
           await storeOriginalTxData(
             downloadedOriginalTxs,
-            randomArchiver.ip + ':' + randomArchiver.port,
             true
           )
           savedOriginalTxCountBetweenCycles += downloadedOriginalTxs.length
@@ -1753,7 +1751,7 @@ export const syncCyclesAndReceiptsData = async (
       if (res && res.originalTxs) {
         const downloadedOriginalTxs = res.originalTxs
         Logger.mainLogger.debug(`Downloaded Original-Txs: `, downloadedOriginalTxs.length)
-        await storeOriginalTxData(downloadedOriginalTxs, randomArchiver.ip + ':' + randomArchiver.port, true)
+        await storeOriginalTxData(downloadedOriginalTxs, true)
         if (downloadedOriginalTxs.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
           startOriginalTx += downloadedOriginalTxs.length + 1
           endOriginalTx = downloadedOriginalTxs.length + MAX_ORIGINAL_TXS_PER_REQUEST
