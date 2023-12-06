@@ -257,7 +257,7 @@ async function syncAndStartServer() {
     }
 
     // Update the last stored cycle count
-    lastStoredCycleCount = cycleResult.cycle
+    lastStoredCycleCount = cycleResult.matchedCycle
   }
 
   // If there are stored receipts, validate the old receipt data
