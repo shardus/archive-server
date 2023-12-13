@@ -339,7 +339,7 @@ interface validateResponse {
   error?: string
 }
 
-export const validateGossipTxData = (data: GossipData): validateResponse => {
+export const validateGossipData = (data: GossipData): validateResponse => {
   let err = Utils.validateTypes(data, {
     dataType: 's',
     data: 'a',
@@ -378,7 +378,7 @@ export const validateGossipTxData = (data: GossipData): validateResponse => {
   return { success: true }
 }
 
-export const processGossipData = (gossipdata: GossipData) => {
+export const processGossipData = (gossipdata: GossipData): void => {
   const { dataType, data, sender } = gossipdata
   if (dataType === DataType.RECEIPT) {
     for (const txData of data as TxsData[]) {
