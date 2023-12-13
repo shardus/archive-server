@@ -331,7 +331,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   )
 }
 
-export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
+export function collectCycleData(cycleData: Cycle[], senderInfo = ''): void {
   for (const cycle of cycleData) {
     // Logger.mainLogger.debug('Cycle received', cycle.counter, senderInfo)
     let cycleToSave = []
@@ -368,10 +368,11 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
     const minCycleConfirmations =
       Math.min(Math.ceil(NodeList.getActiveList().length / currentConsensusRadius), 5) || 1
 
-    for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
+    for (const value of Object.values(receivedCycleTracker[cycle.counter])) {
       if (value['saved']) {
         // If there is a saved cycle, clear the cycleToSave of this counter; This is to prevent saving the another cycle of the same counter
         for (let i = 0; i < cycleToSave.length; i++) {
+          // eslint-disable-next-line security/detect-object-injection
           receivedCycleTracker[cycle.counter][cycleToSave[i].marker]['saved'] = false
         }
         cycleToSave = []
@@ -393,20 +394,26 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
         let totalTimes = 0
         let logCycle = false
         // If there is more than one marker for this cycle, output the cycle log
+        // eslint-disable-next-line security/detect-object-injection
         if (Object.keys(receivedCycleTracker[counter]).length > 1) logCycle = true
+        // eslint-disable-next-line security/detect-object-injection
         for (const key of Object.keys(receivedCycleTracker[counter])) {
           Logger.mainLogger.debug(
             'Cycle',
             counter,
             key, // marker
+            /* eslint-disable security/detect-object-injection */
             receivedCycleTracker[counter][key]['receivedTimes'],
             logCycle ? JSON.stringify(receivedCycleTracker[counter][key]['senderNodes']) : '',
             logCycle ? receivedCycleTracker[counter][key] : ''
+            /* eslint-enable security/detect-object-injection */
           )
+          // eslint-disable-next-line security/detect-object-injection
           totalTimes += receivedCycleTracker[counter][key]['receivedTimes']
         }
         if (logCycle) Logger.mainLogger.debug(`Cycle ${counter} has different markers!`)
         Logger.mainLogger.debug(`Received ${totalTimes} times for cycle counter ${counter}`)
+        // eslint-disable-next-line security/detect-object-injection
         delete receivedCycleTracker[counter]
       }
     }
@@ -431,7 +438,7 @@ export const dataSenders: Map<NodeList.ConsensusNodeInfo['publicKey'], DataSende
 
 export const emitter = new EventEmitter()
 
-export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']): Promise<void> {
   nestedCountersInstance.countEvent('archiver', 'replace_data_sender')
   if (NodeList.getActiveList().length < 2) {
     Logger.mainLogger.debug('There is only one active node in the network. Unable to replace data sender')
@@ -532,7 +539,7 @@ async function getConsensusRadius(): Promise<number> {
   Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
   // TODO: Should try to get the network config from multiple nodes and use the consensusRadius that has the majority
   const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
-  const response: any = await P2P.getJson(
+  const response = await P2P.getJson(
     `http://${randomNode.ip}:${randomNode.port}/netconfig`,
     REQUEST_NETCONFIG_TIMEOUT_SECOND
   ) as configConsensusResponse
@@ -866,7 +873,7 @@ export async function checkJoinStatus(): Promise<boolean> {
       Logger.mainLogger.debug('Joined archivers', joinedArchivers)
 
         const isJoined = [...joinedArchivers, ...refreshedArchivers].some(
-          (a: any) => a.publicKey === ourNodeInfo.publicKey
+          (a) => a.publicKey === ourNodeInfo.publicKey
         )
         Logger.mainLogger.debug('isJoined', isJoined)
         return !!isJoined
@@ -917,7 +924,7 @@ export async function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusN
       Logger.mainLogger.debug('Joined archivers', joinedArchivers)
 
         const isJoined: boolean = [...joinedArchivers, ...refreshedArchivers].some(
-          (a: any) => a.publicKey === ourNodeInfo.publicKey
+          (a) => a.publicKey === ourNodeInfo.publicKey
         )
         Logger.mainLogger.debug('isJoined', isJoined)
         return !!isJoined
