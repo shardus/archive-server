@@ -54,7 +54,10 @@ export const getAdjacentLeftAndRightArchivers = (): void => {
   if (rightArchiver) adjacentArchivers.set(rightArchiver.publicKey, rightArchiver)
 }
 
-export async function sendDataToAdjacentArchivers(dataType: DataType, data: GossipData['data']): Promise<void> {
+export async function sendDataToAdjacentArchivers(
+  dataType: DataType,
+  data: GossipData['data']
+): Promise<void> {
   if (stopGossipTxData) return
   if (adjacentArchivers.size === 0) return
   const gossipPayload = {
