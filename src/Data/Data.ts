@@ -126,11 +126,17 @@ interface IncomingTimes {
   end: number
 }
 
+export interface DataQueryResponse {
+  success: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any
+}
+
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   type: P2PTypes.SnapshotTypes.TypeName<T>,
   lastData: P2PTypes.SnapshotTypes.TypeIndex<T>,
   recipientPk: Crypto.types.publicKey
-): DataRequest<T> {
+): DataRequest<T> & Crypto.TaggedMessage {
   return Crypto.tag<DataRequest<T>>(
     {
       type,
@@ -539,10 +545,10 @@ async function getConsensusRadius(): Promise<number> {
   Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
   // TODO: Should try to get the network config from multiple nodes and use the consensusRadius that has the majority
   const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
-  const response = await P2P.getJson(
+  const response = (await P2P.getJson(
     `http://${randomNode.ip}:${randomNode.port}/netconfig`,
     REQUEST_NETCONFIG_TIMEOUT_SECOND
-  ) as configConsensusResponse
+  )) as configConsensusResponse
 
   if (response && response.config) {
     let nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
@@ -864,7 +870,9 @@ export async function checkJoinStatus(): Promise<boolean> {
   const ourNodeInfo = State.getNodeInfo()
   const randomArchiver = getRandomArchiver()
 
-  const response = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`) as ArchiverCycleResponse
+  const response = (await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`
+  )) as ArchiverCycleResponse
   try {
     if (response && response.cycleInfo[0] && response.cycleInfo[0].joinedArchivers) {
       const joinedArchivers = response.cycleInfo[0].joinedArchivers
@@ -872,13 +880,12 @@ export async function checkJoinStatus(): Promise<boolean> {
       Logger.mainLogger.debug('cycle counter', response.cycleInfo[0].counter)
       Logger.mainLogger.debug('Joined archivers', joinedArchivers)
 
-        const isJoined = [...joinedArchivers, ...refreshedArchivers].some(
-          (a) => a.publicKey === ourNodeInfo.publicKey
-        )
-        Logger.mainLogger.debug('isJoined', isJoined)
-        return !!isJoined
-    }
-    else {
+      const isJoined = [...joinedArchivers, ...refreshedArchivers].some(
+        (a) => a.publicKey === ourNodeInfo.publicKey
+      )
+      Logger.mainLogger.debug('isJoined', isJoined)
+      return !!isJoined
+    } else {
       return false
     }
   } catch (e) {
@@ -887,29 +894,27 @@ export async function checkJoinStatus(): Promise<boolean> {
   }
 }
 
-//TODO check if this is needed since activeArchivers are not part of the cycleinfo
-// export async function checkActiveStatus(): Promise<boolean> {
-//   Logger.mainLogger.debug('Checking active status')
-//   const ourNodeInfo = State.getNodeInfo()
-//   const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
-//   const latestCycle = await getNewestCycleFromArchivers(randomArchivers)
-//   try {
-//     if (latestCycle && latestCycle.activeArchivers) {
-//       const activeArchivers = latestCycle.activeArchivers
-//       Logger.mainLogger.debug('cycle counter', latestCycle.counter)
-//       Logger.mainLogger.debug('Active archivers', activeArchivers)
-//         let isActive = activeArchivers.some((a: any) => a.publicKey === ourNodeInfo.publicKey)
-//         Logger.mainLogger.debug('isActive', isActive)
-//         resolve(isActive)
-//       } else {
-//         resolve(false)
-//       }
-//     } catch (e) {
-//       Logger.mainLogger.error(e)
-//       resolve(false)
-//     }
-//   })
-// }
+export async function checkActiveStatus(): Promise<boolean> {
+  Logger.mainLogger.debug('Checking active status')
+  const ourNodeInfo = State.getNodeInfo()
+  const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
+  const latestCycle = await getNewestCycleFromArchivers(randomArchivers)
+  try {
+    if (latestCycle && latestCycle.activeArchivers) {
+      const activeArchivers = latestCycle.activeArchivers
+      Logger.mainLogger.debug('cycle counter', latestCycle.counter)
+      Logger.mainLogger.debug('Active archivers', activeArchivers)
+      const isActive = activeArchivers.some((a) => a.publicKey === ourNodeInfo.publicKey)
+      Logger.mainLogger.debug('isActive', isActive)
+      return !!isActive
+    } else {
+      return false
+    }
+  } catch (e) {
+    Logger.mainLogger.error(e)
+    return false
+  }
+}
 
 export async function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInfo[]): Promise<boolean> {
   Logger.mainLogger.debug('Checking join status from consenosr')
@@ -923,18 +928,18 @@ export async function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusN
       Logger.mainLogger.debug('cycle counter', latestCycle.counter)
       Logger.mainLogger.debug('Joined archivers', joinedArchivers)
 
-        const isJoined: boolean = [...joinedArchivers, ...refreshedArchivers].some(
-          (a) => a.publicKey === ourNodeInfo.publicKey
-        )
-        Logger.mainLogger.debug('isJoined', isJoined)
-        return !!isJoined
-      } else {
-        return false
-      }
-    } catch (e) {
-      Logger.mainLogger.error(e)
+      const isJoined: boolean = [...joinedArchivers, ...refreshedArchivers].some(
+        (a) => a.publicKey === ourNodeInfo.publicKey
+      )
+      Logger.mainLogger.debug('isJoined', isJoined)
+      return !!isJoined
+    } else {
       return false
     }
+  } catch (e) {
+    Logger.mainLogger.error(e)
+    return false
+  }
 }
 //TODO check if this is needed since response.totalData is not part of the /totaldata endpoint
 // export async function getTotalDataFromArchivers(): Promise<ArchiverTotalDataResponse> {
@@ -973,10 +978,10 @@ export async function syncGenesisAccountsFromArchiver(): Promise<void> {
   //   // Let's assume it has synced data for now, update to sync account count between them
   //   return;
   // }
-  const res = await P2P.getJson(
+  const res = (await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5`,
     QUERY_TIMEOUT_MAX
-  ) as ArchiverAccountResponse
+  )) as ArchiverAccountResponse
   if (res && res.totalAccounts) {
     totalGenesisAccounts = res.totalAccounts
     Logger.mainLogger.debug('TotalGenesis Accounts', totalGenesisAccounts)
@@ -988,10 +993,10 @@ export async function syncGenesisAccountsFromArchiver(): Promise<void> {
   let page = 1
   while (!complete) {
     Logger.mainLogger.debug(`Downloading accounts from ${startAccount} to ${endAccount}`)
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5&page=${page}`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverAccountResponse
+    )) as ArchiverAccountResponse
     if (response && response.accounts) {
       if (response.accounts.length < MAX_ACCOUNTS_PER_REQUEST) {
         complete = true
@@ -1017,10 +1022,10 @@ export async function syncGenesisTransactionsFromArchiver(): Promise<void> {
   let endTransaction = startTransaction + MAX_ACCOUNTS_PER_REQUEST // Sames as number of accounts per request
   let totalGenesisTransactions = 0
 
-  const res = await P2P.getJson(
+  const res = (await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5`,
     QUERY_TIMEOUT_MAX
-  ) as ArchiverTransactionResponse
+  )) as ArchiverTransactionResponse
   if (res && res.totalTransactions) {
     totalGenesisTransactions = res.totalTransactions
     Logger.mainLogger.debug('TotalGenesis Transactions', totalGenesisTransactions)
@@ -1032,10 +1037,10 @@ export async function syncGenesisTransactionsFromArchiver(): Promise<void> {
   let page = 1
   while (!complete) {
     Logger.mainLogger.debug(`Downloading transactions from ${startTransaction} to ${endTransaction}`)
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5&page=${page}`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverTransactionResponse
+    )) as ArchiverTransactionResponse
     if (response && response.transactions) {
       if (response.transactions.length < MAX_ACCOUNTS_PER_REQUEST) {
         complete = true
@@ -1064,10 +1069,10 @@ export async function syncGenesisAccountsFromConsensor(
   let totalDownloadedAccounts = 0
   while (startAccount <= totalGenesisAccounts) {
     Logger.mainLogger.debug(`Downloading accounts from ${startAccount}`)
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${firstConsensor.ip}:${firstConsensor.port}/genesis_accounts?start=${startAccount}`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverAccountResponse
+    )) as ArchiverAccountResponse
     if (response && response.accounts) {
       if (response.accounts.length < MAX_ACCOUNTS_PER_REQUEST) {
         Logger.mainLogger.debug('Download completed for accounts')
@@ -1311,10 +1316,10 @@ export async function syncCyclesBetweenCycles(lastStoredCycle = 0, cycleToSyncTo
   while (cycleToSyncTo > startCycle) {
     if (endCycle > cycleToSyncTo) endCycle = cycleToSyncTo
     Logger.mainLogger.debug(`Downloading cycles from ${startCycle} to ${endCycle}`)
-    const res = await P2P.getJson(
+    const res = (await P2P.getJson(
       `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo?start=${startCycle}&end=${endCycle}`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverCycleResponse
+    )) as ArchiverCycleResponse
     if (res && res.cycleInfo) {
       const cycles = res.cycleInfo as Cycle[]
       Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
@@ -1334,10 +1339,10 @@ export async function syncCyclesBetweenCycles(lastStoredCycle = 0, cycleToSyncTo
 
 export async function syncReceipts(lastStoredReceiptCount = 0): Promise<boolean> {
   const randomArchiver = getRandomArchiver()
-  const response = await P2P.getJson(
+  const response = (await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`,
     QUERY_TIMEOUT_MAX
-  ) as ArchiverTotalDataResponse
+  )) as ArchiverTotalDataResponse
   if (!response || response.totalReceipts < 0) {
     return false
   }
@@ -1357,29 +1362,29 @@ export const downloadReceipts = async (
   let end = start + MAX_RECEIPTS_PER_REQUEST
   while (!complete) {
     if (end >= to) {
-      const res = await P2P.getJson(
+      const res = (await P2P.getJson(
         `http://${archiver.ip}:${archiver.port}/totalData`,
         QUERY_TIMEOUT_MAX
-      ) as ArchiverTotalDataResponse
+      )) as ArchiverTotalDataResponse
       if (res && res.totalReceipts > 0) {
         if (res.totalReceipts > to) to = res.totalReceipts
         Logger.mainLogger.debug('totalReceiptsToSync', to)
       }
     }
     Logger.mainLogger.debug(`Downloading receipts from ${start} to  ${end}`)
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${archiver.ip}:${archiver.port}/receipt?start=${start}&end=${end}`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverReceiptResponse
+    )) as ArchiverReceiptResponse
     if (response && response.receipts) {
       const downloadedReceipts = response.receipts
       Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
       await storeReceiptData(downloadedReceipts, archiver.ip + ':' + archiver.port, true)
       if (response.receipts.length < MAX_RECEIPTS_PER_REQUEST) {
-        const res = await P2P.getJson(
+        const res = (await P2P.getJson(
           `http://${archiver.ip}:${archiver.port}/totalData`,
           QUERY_TIMEOUT_MAX
-        ) as ArchiverTotalDataResponse
+        )) as ArchiverTotalDataResponse
         start += response.receipts.length
         end = start + MAX_RECEIPTS_PER_REQUEST
         if (res && res.totalReceipts > 0) {
@@ -1410,29 +1415,29 @@ export const downloadOriginalTxs = async (
   while (!complete) {
     if (end >= to) {
       // If the number of new original txs to sync is within MAX_ORIGINAL_TXS_PER_REQUEST => Update to the latest totalOriginalTxs.
-      const res = await P2P.getJson(
+      const res = (await P2P.getJson(
         `http://${archiver.ip}:${archiver.port}/totalData`,
         QUERY_TIMEOUT_MAX
-      ) as ArchiverTotalDataResponse
+      )) as ArchiverTotalDataResponse
       if (res && res.totalOriginalTxs > 0) {
         if (res.totalOriginalTxs > to) to = res.totalOriginalTxs
         Logger.mainLogger.debug('totalOriginalTxs: ', to)
       }
     }
     Logger.mainLogger.debug(`Downloading Original-Txs from ${start} to ${end}`)
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${archiver.ip}:${archiver.port}/originalTx?start=${start}&end=${end}`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverOriginalTxResponse
+    )) as ArchiverOriginalTxResponse
     if (response && response.originalTxs) {
       const downloadedOriginalTxs = response.originalTxs
       Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
       await storeOriginalTxData(downloadedOriginalTxs, archiver.ip + ':' + archiver.port, true)
       if (response.originalTxs.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
-        const totalData = await P2P.getJson(
+        const totalData = (await P2P.getJson(
           `http://${archiver.ip}:${archiver.port}/totalData`,
           QUERY_TIMEOUT_MAX
-        ) as ArchiverTotalDataResponse
+        )) as ArchiverTotalDataResponse
         start += response.originalTxs.length
         end = start + MAX_ORIGINAL_TXS_PER_REQUEST
         if (totalData && totalData.totalOriginalTxs > 0) {
@@ -1457,10 +1462,10 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle = 0, cycleToSyn
   let totalReceipts = 0
   const randomArchiver = getRandomArchiver()
   if (cycleToSyncTo === 0) {
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverTotalDataResponse
+    )) as ArchiverTotalDataResponse
     if (!response || response.totalReceipts < 0) {
       return false
     }
@@ -1485,10 +1490,10 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle = 0, cycleToSyn
       }
     } else {
       if (totalSavedReceiptsCount >= totalReceipts) {
-        const res = await P2P.getJson(
+        const res = (await P2P.getJson(
           `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`,
           QUERY_TIMEOUT_MAX
-        ) as ArchiverTotalDataResponse
+        )) as ArchiverTotalDataResponse
         if (res && res.totalReceipts > 0) {
           if (res.totalReceipts > totalReceipts) totalReceipts = res.totalReceipts
           if (res.totalCycles > totalCycles) totalCycles = res.totalCycles
@@ -1512,29 +1517,29 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle = 0, cycleToSyn
       break
     }
     Logger.mainLogger.debug(`Downloading receipts from cycle ${startCycle} to cycle ${endCycle}`)
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverReceiptCountResponse
+    )) as ArchiverReceiptCountResponse
     if (response && response.receipts > 0) {
       receiptsCountToSyncBetweenCycles = response.receipts
       let page = 1
       savedReceiptsCountBetweenCycles = 0
       while (savedReceiptsCountBetweenCycles < receiptsCountToSyncBetweenCycles) {
-        const response = await P2P.getJson(
+        const response = (await P2P.getJson(
           `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`,
           QUERY_TIMEOUT_MAX
-        ) as ArchiverReceiptResponse
+        )) as ArchiverReceiptResponse
         if (response && response.receipts) {
           const downloadedReceipts = response.receipts
           Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
           await storeReceiptData(downloadedReceipts, randomArchiver.ip + ':' + randomArchiver.port, true)
           savedReceiptsCountBetweenCycles += downloadedReceipts.length
           if (savedReceiptsCountBetweenCycles > receiptsCountToSyncBetweenCycles) {
-            const response = await P2P.getJson(
+            const response = (await P2P.getJson(
               `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
               QUERY_TIMEOUT_MAX
-            ) as ArchiverReceiptCountResponse
+            )) as ArchiverReceiptCountResponse
             if (response && response.receipts) receiptsCountToSyncBetweenCycles = response.receipts
             if (receiptsCountToSyncBetweenCycles > savedReceiptsCountBetweenCycles) {
               savedReceiptsCountBetweenCycles -= downloadedReceipts.length
@@ -1578,10 +1583,10 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle = 0, cycleToSyn
 
 export const syncOriginalTxs = async (lastStoredOriginalTxsCount = 0): Promise<boolean> => {
   const randomArchiver = getRandomArchiver()
-  const totalData = await P2P.getJson(
+  const totalData = (await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`,
     QUERY_TIMEOUT_MAX
-  ) as ArchiverTotalDataResponse
+  )) as ArchiverTotalDataResponse
   if (!totalData || totalData.totalOriginalTxs < 0) {
     return false
   }
@@ -1600,10 +1605,10 @@ export const syncOriginalTxsByCycle = async (
   let totalOriginalTxs = 0
   const randomArchiver = getRandomArchiver()
   if (cycleToSyncTo === 0) {
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverTotalDataResponse
+    )) as ArchiverTotalDataResponse
     if (!response || response.totalOriginalTxs < 0) {
       return
     }
@@ -1628,10 +1633,10 @@ export const syncOriginalTxsByCycle = async (
       }
     } else {
       if (totalSavedOriginalTxCount >= totalOriginalTxs) {
-        const res = await P2P.getJson(
+        const res = (await P2P.getJson(
           `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`,
           QUERY_TIMEOUT_MAX
-        ) as ArchiverTotalDataResponse
+        )) as ArchiverTotalDataResponse
         if (res && res.totalOriginalTxs > 0) {
           if (res.totalOriginalTxs > totalOriginalTxs) totalOriginalTxs = res.totalOriginalTxs
           if (res.totalCycles > totalCycles) totalCycles = res.totalCycles
@@ -1655,19 +1660,19 @@ export const syncOriginalTxsByCycle = async (
       break
     }
     Logger.mainLogger.debug(`Downloading Original-Tx data from cycle ${startCycle} to cycle ${endCycle}`)
-    const response = await P2P.getJson(
+    const response = (await P2P.getJson(
       `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
       QUERY_TIMEOUT_MAX
-    ) as ArchiverOriginalTxCountResponse
+    )) as ArchiverOriginalTxCountResponse
     if (response && response.originalTxs > 0) {
       originalTxCountToSyncBetweenCycles = response.originalTxs
       let page = 1
       savedOriginalTxCountBetweenCycles = 0
       while (savedOriginalTxCountBetweenCycles < originalTxCountToSyncBetweenCycles) {
-        const response = await P2P.getJson(
+        const response = (await P2P.getJson(
           `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`,
           QUERY_TIMEOUT_MAX
-        ) as ArchiverOriginalTxResponse
+        )) as ArchiverOriginalTxResponse
         if (response && response.originalTxs) {
           const downloadedOriginalTxs = response.originalTxs
           Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
@@ -1678,10 +1683,10 @@ export const syncOriginalTxsByCycle = async (
           )
           savedOriginalTxCountBetweenCycles += downloadedOriginalTxs.length
           if (savedOriginalTxCountBetweenCycles > originalTxCountToSyncBetweenCycles) {
-            const response = await P2P.getJson(
+            const response = (await P2P.getJson(
               `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
               QUERY_TIMEOUT_MAX
-            ) as ArchiverOriginalTxCountResponse
+            )) as ArchiverOriginalTxCountResponse
             if (response && response.originalTxs) originalTxCountToSyncBetweenCycles = response.originalTxs
             if (originalTxCountToSyncBetweenCycles > savedOriginalTxCountBetweenCycles) {
               savedOriginalTxCountBetweenCycles -= downloadedOriginalTxs.length
@@ -1728,10 +1733,10 @@ export const syncCyclesAndReceiptsData = async (
   lastStoredOriginalTxCount = 0
 ): Promise<boolean> => {
   const randomArchiver = getRandomArchiver()
-  const response = await P2P.getJson(
+  const response = (await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`,
     QUERY_TIMEOUT_MAX
-  ) as ArchiverTotalDataResponse
+  )) as ArchiverTotalDataResponse
   if (!response || response.totalCycles < 0 || response.totalReceipts < 0) {
     return false
   }
@@ -1775,10 +1780,10 @@ export const syncCyclesAndReceiptsData = async (
       endCycle >= totalCyclesToSync ||
       endOriginalTx >= totalOriginalTxsToSync
     ) {
-      const response = await P2P.getJson(
+      const response = (await P2P.getJson(
         `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`,
         QUERY_TIMEOUT_MAX
-      ) as ArchiverTotalDataResponse
+      )) as ArchiverTotalDataResponse
       if (response && response.totalReceipts && response.totalCycles && response.totalOriginalTxs) {
         if (response.totalReceipts !== totalReceiptsToSync) {
           completeForReceipt = false
@@ -1813,10 +1818,10 @@ export const syncCyclesAndReceiptsData = async (
     }
     if (!completeForReceipt) {
       Logger.mainLogger.debug(`Downloading receipts from ${startReceipt} to ${endReceipt}`)
-      const res = await P2P.getJson(
+      const res = (await P2P.getJson(
         `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?start=${startReceipt}&end=${endReceipt}`,
         QUERY_TIMEOUT_MAX
-      ) as ArchiverReceiptResponse
+      )) as ArchiverReceiptResponse
       if (res && res.receipts) {
         const downloadedReceipts = res.receipts
         Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
@@ -1834,10 +1839,10 @@ export const syncCyclesAndReceiptsData = async (
     }
     if (!completeForOriginalTx) {
       Logger.mainLogger.debug(`Downloading Original-Txs from ${startOriginalTx} to ${endOriginalTx}`)
-      const res = await P2P.getJson(
+      const res = (await P2P.getJson(
         `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?start=${startOriginalTx}&end=${endOriginalTx}`,
         QUERY_TIMEOUT_MAX
-      ) as ArchiverOriginalTxResponse
+      )) as ArchiverOriginalTxResponse
       if (res && res.originalTxs) {
         const downloadedOriginalTxs = res.originalTxs
         Logger.mainLogger.debug(`Downloaded Original-Txs: `, downloadedOriginalTxs.length)
@@ -1855,10 +1860,10 @@ export const syncCyclesAndReceiptsData = async (
     }
     if (!completeForCycle) {
       Logger.mainLogger.debug(`Downloading cycles from ${startCycle} to ${endCycle}`)
-      const res = await P2P.getJson(
+      const res = (await P2P.getJson(
         `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo?start=${startCycle}&end=${endCycle}`,
         QUERY_TIMEOUT_MAX
-      ) as ArchiverCycleResponse
+      )) as ArchiverCycleResponse
       if (res && res.cycleInfo) {
         Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
         const cycles = res.cycleInfo as Cycle[]
@@ -1945,10 +1950,10 @@ export async function compareWithOldOriginalTxsData(
 ): Promise<CompareResponse> {
   const endCycle = lastStoredOriginalTxCycle
   const startCycle = endCycle - 20 > 0 ? endCycle - 20 : 0
-  const response = await P2P.getJson(
+  const response = (await P2P.getJson(
     `http://${archiver.ip}:${archiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`,
     QUERY_TIMEOUT_MAX
-  ) as ArchiverOriginalTxResponse
+  )) as ArchiverOriginalTxResponse
   let downloadedOriginalTxsByCycles = []
   if (response && response.originalTxs) {
     downloadedOriginalTxsByCycles = response.originalTxs
