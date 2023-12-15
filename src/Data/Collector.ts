@@ -212,7 +212,7 @@ export const storeCycleData = async (cycles: Cycle[] = []): Promise<void> => {
 
 interface StoreAccountParam {
   accounts?: Account.AccountCopy[]
-  receipts?: (Account.AccountCopy & { txId?: string })[]
+  receipts?: Transaction.Transaction[]
 }
 
 export const storeAccountData = async (restoreData: StoreAccountParam = {}): Promise<void> => {
