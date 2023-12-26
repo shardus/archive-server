@@ -4,6 +4,7 @@ import * as State from '../State'
 import * as P2P from '../P2P'
 import { config } from '../Config'
 import * as Logger from '../Logger'
+import { getActiveNodeListFromArchiver } from '../NodeList'
 
 interface HashItem {
   counter: number
@@ -133,7 +134,18 @@ export function convertStateMetadataToHashArray(STATE_METATDATA: StateMetadata):
   return Object.values(hashCollector)
 }
 
-export function addHashesGossip(sender: string, gossip: Gossip): void {
+export async function addHashesGossip(sender: string, gossip: Gossip): Promise<void> {
+  // Select one archiver randomly from the active list
+  const selectedArchiver = State.activeArchivers[Math.floor(Math.random() * State.activeArchivers.length)]
+
+  // Get the list of active nodes from the selected archiver
+  const nodeList = await getActiveNodeListFromArchiver(selectedArchiver)
+
+  // Check if sender is a valid node IP
+  if (!nodeList.some((node) => node.publicKey === sender)) {
+    throw new Error(`Invalid node IP: ${sender}`)
+  }
+
   const counter = gossip.counter
   if (gossipCollector.has(counter)) {
     const existingGossips = gossipCollector.get(counter)
