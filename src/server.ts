@@ -424,7 +424,14 @@ async function syncAndStartServer(): Promise<void> {
   let firstTime = true
 
   // Get the cycle duration
-  const cycleDuration = await Data.getCycleDuration()
+  const { active, duration: cycleDuration } = await Data.getLatestCycleRecord()
+
+  if (active < config.minValidatorCount) {
+    Logger.mainLogger.error(
+      `Not enough Validators to start the archiver. Available Validators: ${active}. Exiting..`
+    )
+    process.exit(0)
+  }
 
   // Attempt to join the network until successful
   do {

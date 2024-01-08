@@ -41,6 +41,7 @@ export interface Config {
   sendActiveMessage: boolean
   globalNetworkAccount: string
   maxValidatorsToServe: number
+  minValidatorCount: number
 }
 
 let config: Config = {
@@ -80,6 +81,7 @@ let config: Config = {
   sendActiveMessage: false,
   globalNetworkAccount: process.env.GLOBAL_ACCOUNT || '0'.repeat(64), //this address will change in the future
   maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
+  minValidatorCount: 5, // min number of validators suggested for the network
 }
 // Override default config params from config file, env vars, and cli args
 export function overrideDefaultConfig(env: NodeJS.ProcessEnv, args: string[]): string {

@@ -46,6 +46,7 @@ import * as GossipData from './GossipData'
 import ioclient = require('socket.io-client')
 import { Transaction } from '../dbstore/transactions'
 import { AccountCopy } from '../dbstore/accounts'
+import { CycleRecord } from '@shardus/types/build/src/p2p/CycleCreatorTypes'
 export let socketServer: SocketIO.Server
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 // let socketConnectionsTracker: Map<string, string> = new Map()
@@ -850,16 +851,16 @@ export async function sendActiveRequest(): Promise<void> {
   await Utils.sleep(latestCycle.duration * 1000 + 500)
 }
 
-export async function getCycleDuration(): Promise<number> {
+export async function getLatestCycleRecord(): Promise<CycleRecord> {
   const randomArchiver = getRandomArchiver()
   const response = (await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`
   )) as ArchiverCycleResponse
 
   if (response && response.cycleInfo) {
-    return response.cycleInfo[0].duration
+    return response.cycleInfo[0]
   }
-  return 0
+  return null
 }
 
 export async function checkJoinStatus(): Promise<boolean> {
