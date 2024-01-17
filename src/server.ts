@@ -1724,7 +1724,8 @@ async function startServer(): Promise<SocketIO.Server> {
   })
 
   // Start server and bind to port on all interfaces
-  server.start(() => {
+  server.start(
+    () => {
       Logger.mainLogger.debug('Listening', config.ARCHIVER_PORT)
       Logger.mainLogger.debug('Archive-server has started.')
       State.setActive()
@@ -1732,10 +1733,10 @@ async function startServer(): Promise<SocketIO.Server> {
       Collector.scheduleCacheCleanup()
       Collector.scheduleMissingTxsDataQuery()
     },
-      (err) => {
-        // server.log.error(err)
-        process.exit(1)
-      }
+    (err) => {
+      // server.log.error(err)
+      process.exit(1)
+    }
   )
   return io
 }
