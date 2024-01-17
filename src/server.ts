@@ -5,10 +5,7 @@ console.log(_startingMessage)
 console.error(_startingMessage)
 
 import { join } from 'path'
-import fastify, { FastifyInstance, FastifyRequest } from 'fastify'
-import fastifyCors from '@fastify/cors'
-import fastifyRateLimit from '@fastify/rate-limit'
-import { Server, IncomingMessage, ServerResponse } from 'http'
+import { Server } from './http/Server'
 import { overrideDefaultConfig, config } from './Config'
 import * as Crypto from './Crypto'
 import * as State from './State'
@@ -49,6 +46,13 @@ import { getGlobalNetworkAccount, loadGlobalAccounts, syncGlobalAccount } from '
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import * as path from 'path'
 import * as fs from 'fs'
+import {
+  Middleware,
+  corsMiddleware,
+  getBodyMiddleware,
+  getQueryStringMiddleware,
+  rateLimitMiddleware,
+} from './http/Middleware'
 
 // Socket modules
 let io: SocketIO.Server
@@ -65,10 +69,6 @@ export type ReceiptQuery = {
   txIdList: string
 }
 
-export type ReceiptRequest = FastifyRequest<{
-  Querystring: ReceiptQuery
-}>
-
 export type AccountQuery = {
   start: string
   end: string
@@ -78,10 +78,6 @@ export type AccountQuery = {
   page: string
   accountId: string
 }
-
-export type AccountRequest = FastifyRequest<{
-  Querystring: AccountQuery
-}>
 
 export type TransactionQuery = {
   start: string
@@ -93,18 +89,10 @@ export type TransactionQuery = {
   accountId: string
 }
 
-export type TransactionRequest = FastifyRequest<{
-  Querystring: TransactionQuery
-}>
-
 export type FullArchiveQuery = {
   start: string
   end: string
 }
-
-export type FullArchiveRequest = FastifyRequest<{
-  Querystring: FullArchiveQuery
-}>
 
 // Override default config params from config file, env vars, and cli args
 // commented out since never used
@@ -272,7 +260,7 @@ async function start(): Promise<void> {
   }
 }
 
-function initProfiler(server: FastifyInstance): void {
+function initProfiler(server: Server): void {
   const memoryReporter = new MemoryReporting(server)
   setMemoryReportingInstance(memoryReporter)
   const nestedCounter = new NestedCounters(server)
@@ -569,7 +557,7 @@ export function getDevPublicKey(): string {
 
 let lastCounter = 0
 
-const isDebugMiddleware = (_req, res): void => {
+const isDebugMiddleware: Middleware = (_req, res, next: () => void): void => {
   const isDebug = isDebugMode()
   if (!isDebug) {
     try {
@@ -589,8 +577,8 @@ const isDebugMiddleware = (_req, res): void => {
         const requestSig = _req.query.sig
         //check if counter is valid
         const sigObj = {
-          route: _req.route,
-          count: _req.query.sig_counter,
+          route: _req.url,
+          count: parseInt(_req.query.sig_counter),
           sign: { owner: ownerPk, sig: requestSig },
         }
 
@@ -610,26 +598,23 @@ const isDebugMiddleware = (_req, res): void => {
     } catch (error) {
       // console.log(error)
       // throw new Error('FORBIDDEN. Endpoint is only available in debug mode.')
-      res.code(401).send(error)
+      res.sendJson({ error: error }, 400)
     }
   }
+  next()
 }
 
 let reachabilityAllowed = true
 
 // Define all endpoints, all requests, and start REST server
 async function startServer(): Promise<SocketIO.Server> {
-  const server: FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
-    logger: false,
-  })
-
-  await server.register(fastifyCors)
-  await server.register(fastifyRateLimit, {
-    global: true,
-    max: config.RATE_LIMIT,
-    timeWindow: 10,
-    allowList: ['127.0.0.1', '0.0.0.0'], // Excludes local IPs from rate limits
-  })
+  const server: Server = new Server(config.ARCHIVER_PORT)
+  server.registerMiddleware([
+    corsMiddleware,
+    rateLimitMiddleware,
+    getBodyMiddleware,
+    getQueryStringMiddleware,
+  ])
 
   // Socket server instance
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -698,20 +683,17 @@ async function startServer(): Promise<SocketIO.Server> {
    *
    * CZ adds AZ's join reqeuest to cycle zero and sets AZ as cycleRecipient
    */
-  type NodeListRequest = FastifyRequest<{
-    Body: P2P.FirstNodeInfo & Crypto.SignedMessage
-  }>
+  type NodeListRequest = P2P.FirstNodeInfo & Crypto.SignedMessage
 
-  server.get('/myip', function (request, reply) {
-    const ip = request.raw.socket.remoteAddress
-    reply.send({ ip })
+  server.registerRoute('GET', '/myip', (_request, reply) => {
+    const ip = _request.socket.remoteAddress
+    reply.end({ ip })
   })
 
-  server.post('/nodelist', (request: NodeListRequest, reply) => {
+  server.registerRoute('POST', '/nodelist', async (request, reply) => {
     profilerInstance.profileSectionStart('POST_nodelist')
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
-    const signedFirstNodeInfo = request.body
-
+    const signedFirstNodeInfo = request.body as unknown as NodeListRequest
     if (State.isFirst && NodeList.isEmpty() && !NodeList.foundFirstNode) {
       try {
         const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
@@ -781,89 +763,72 @@ async function startServer(): Promise<SocketIO.Server> {
           ),
         })
       }
-
-      reply.send(res)
+      reply.sendJson(res)
     } else {
       // Note, this is doing the same thing as GET /nodelist. However, it has been kept for backwards
       // compatibility.
       const res = getCachedNodeList()
-      reply.send(res)
+      reply.sendJson(res)
     }
     profilerInstance.profileSectionEnd('POST_nodelist')
   })
 
-  server.get('/nodelist', (_request, reply) => {
+  server.registerRoute('GET', '/nodelist', (_request, reply) => {
     profilerInstance.profileSectionStart('GET_nodelist')
     nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
 
     const nodeList = getCachedNodeList()
     profilerInstance.profileSectionEnd('GET_nodelist')
 
-    reply.send(nodeList)
+    reply.sendJson(nodeList)
   })
 
-  type FullNodeListRequest = FastifyRequest<{
-    Querystring: {
-      activeOnly: 'true' | 'false'
-      syncingOnly: 'true' | 'false'
-      standbyOnly: 'true' | 'false'
-    }
-  }>
+  type FullNodeListRequest = {
+    activeOnly: 'true' | 'false'
+    syncingOnly: 'true' | 'false'
+    standbyOnly: 'true' | 'false'
+  }
 
-  server.get(
-    '/full-nodelist',
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (_request: FullNodeListRequest, reply) => {
+  server.registerRoute('GET', '/full-nodelist', [isDebugMiddleware], (_request, reply) => {
+    try {
       profilerInstance.profileSectionStart('FULL_nodelist')
       nestedCountersInstance.countEvent('consensor', 'FULL_nodelist')
-      const { activeOnly, syncingOnly, standbyOnly } = _request.query
+      const { activeOnly, syncingOnly, standbyOnly } = _request.query as FullNodeListRequest
       const activeNodeList = NodeList.getActiveList()
       const syncingNodeList = NodeList.getSyncingList()
-      if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
-      else if (syncingOnly === 'true') reply.send(Crypto.sign({ nodeList: syncingNodeList }))
+      if (activeOnly === 'true') reply.sendJson(Crypto.sign({ nodeList: activeNodeList }))
+      else if (syncingOnly === 'true') reply.sendJson(Crypto.sign({ nodeList: syncingNodeList }))
       else if (standbyOnly === 'true') {
         const standbyNodeList = NodeList.getStandbyList()
-        reply.send(Crypto.sign({ nodeList: standbyNodeList }))
+        reply.sendJson(Crypto.sign({ nodeList: standbyNodeList }))
       } else {
         const fullNodeList = activeNodeList.concat(syncingNodeList)
-        reply.send(Crypto.sign({ nodeList: fullNodeList }))
+        reply.sendJson(Crypto.sign({ nodeList: fullNodeList }))
       }
       profilerInstance.profileSectionEnd('FULL_nodelist')
+    } catch (e) {
+      console.log(e)
     }
-  )
+  })
 
-  server.get(
-    '/removed',
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (_request: FullNodeListRequest, reply) => {
-      profilerInstance.profileSectionStart('removed')
-      nestedCountersInstance.countEvent('consensor', 'removed')
-      reply.send(Crypto.sign({ removedNodes: Cycles.removedNodes }))
-      profilerInstance.profileSectionEnd('removed')
-    }
-  )
+  server.registerRoute('GET', '/removed', [isDebugMiddleware], (_request, reply) => {
+    profilerInstance.profileSectionStart('removed')
+    nestedCountersInstance.countEvent('consensor', 'removed')
+    reply.send(Crypto.sign({ removedNodes: Cycles.removedNodes }))
+    profilerInstance.profileSectionEnd('removed')
+  })
 
-  type LostRequest = FastifyRequest<{
-    Querystring: { start: string; end: string }
-  }>
+  type LostRequest = { start: string; end: string }
 
-  server.get('/lost', async (_request: LostRequest, reply) => {
-    let { start, end } = _request.query
+  server.registerRoute('GET', '/lost', async (_request, reply) => {
+    let { start, end } = _request.query as LostRequest
     if (!start) start = '0'
     if (!end) end = Cycles.getCurrentCycleCounter().toString()
 
     const from = parseInt(start)
     const to = parseInt(end)
     if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-      reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
       return
     }
     let lostNodes = []
@@ -871,10 +836,10 @@ async function startServer(): Promise<SocketIO.Server> {
     const res = Crypto.sign({
       lostNodes,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  server.get('/archivers', (_request, reply) => {
+  server.registerRoute('GET', '/archivers', (_request, reply) => {
     profilerInstance.profileSectionStart('GET_archivers')
     nestedCountersInstance.countEvent('consensor', 'GET_archivers')
     const activeArchivers = State.activeArchivers
@@ -888,12 +853,12 @@ async function startServer(): Promise<SocketIO.Server> {
     const res = Crypto.sign({
       activeArchivers,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  server.get('/nodeInfo', (request, reply) => {
+  server.registerRoute('GET', '/nodeInfo', (request, reply) => {
     if (reachabilityAllowed) {
-      reply.send({
+      reply.sendJson({
         publicKey: config.ARCHIVER_PUBLIC_KEY,
         ip: config.ARCHIVER_IP,
         port: config.ARCHIVER_PORT,
@@ -901,17 +866,17 @@ async function startServer(): Promise<SocketIO.Server> {
         time: Date.now(),
       })
     } else {
-      request.raw.socket.destroy()
+      request.socket.destroy()
     }
   })
 
-  type CycleInfoRequest = FastifyRequest<{
-    Querystring: { start: string; end: string; download: 'true' | 'false' }
-  }>
+  type CycleInfoRequest = { start: string; end: string; download: 'true' | 'false' }
 
-  server.get('/cycleinfo', async (_request: CycleInfoRequest, reply) => {
-    let { start, end } = _request.query
-    const { download } = _request.query
+  server.registerRoute('GET', '/cycleinfo', async (_request, reply) => {
+    const params = _request.params as CycleInfoRequest
+
+    let { start, end } = params
+    const { download } = params
     if (!start) start = '0'
     if (!end) end = start
     const from = parseInt(start)
@@ -920,13 +885,13 @@ async function startServer(): Promise<SocketIO.Server> {
 
     if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
       Logger.mainLogger.error(`Invalid start and end counters`)
-      reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
       return
     }
     const cycleCount = to - from
     if (cycleCount > MAX_CYCLES_PER_REQUEST) {
       Logger.mainLogger.error(`Exceed maximum limit of ${MAX_CYCLES_PER_REQUEST} cycles`)
-      reply.send(
+      reply.sendJson(
         Crypto.sign({
           success: false,
           error: `Exceed maximum limit of ${MAX_CYCLES_PER_REQUEST} cycles`,
@@ -942,32 +907,29 @@ async function startServer(): Promise<SocketIO.Server> {
       const dataInStream = Readable.from(dataInBuffer)
       const filename = `cycle_records_from_${from}_to_${to}`
 
-      reply.headers({
-        'content-disposition': `attachment; filename="${filename}"`,
-        'content-type': 'application/octet-stream',
-      })
-      reply.send(dataInStream)
+      reply.setHeader('content-disposition', `attachment; filename="${filename}"`)
+      reply.setHeader('content-type', 'application/octet-stream')
+      reply.end(dataInStream)
     } else {
       const res = Crypto.sign({
         cycleInfo,
       })
-      reply.send(res)
+      reply.sendJson(res)
     }
   })
 
-  type CycleInfoCountRequest = FastifyRequest<{
-    Params: { count: string }
-  }>
+  type CycleInfoCountRequest = { count: string }
 
-  server.get('/cycleinfo/:count', async (_request: CycleInfoCountRequest, reply) => {
-    const err = Utils.validateTypes(_request.params, { count: 's' })
+  server.registerRoute('GET', '/cycleinfo/:count', async (_request, reply) => {
+    const err = Utils.validateTypes(_request.params as CycleInfoCountRequest, { count: 's' })
+
     if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
+      reply.sendJson(Crypto.sign({ success: false, error: err }))
       return
     }
     let count: number = parseInt(_request.params.count)
     if (count <= 0 || Number.isNaN(count)) {
-      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
     if (count > MAX_CYCLES_PER_REQUEST) count = MAX_CYCLES_PER_REQUEST
@@ -977,11 +939,11 @@ async function startServer(): Promise<SocketIO.Server> {
     const res = Crypto.sign({
       cycleInfo,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  server.get('/originalTx', async (_request: ReceiptRequest, reply) => {
-    const err = Utils.validateTypes(_request.query, {
+  server.registerRoute('GET', '/originalTx', async (_request, reply) => {
+    const err = Utils.validateTypes(_request.query as ReceiptQuery, {
       start: 's?',
       end: 's?',
       startCycle: 's?',
@@ -992,7 +954,7 @@ async function startServer(): Promise<SocketIO.Server> {
       txIdList: 's?',
     })
     if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
+      reply.sendJson(Crypto.sign({ success: false, error: err }))
       return
     }
     const { start, end, startCycle, endCycle, type, page, txId, txIdList } = _request.query
@@ -1000,7 +962,7 @@ async function startServer(): Promise<SocketIO.Server> {
 
     if (txId) {
       if (txId.length !== TXID_LENGTH) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid txId ${txId}`,
@@ -1014,7 +976,7 @@ async function startServer(): Promise<SocketIO.Server> {
       try {
         txIdListArr = JSON.parse(txIdList)
       } catch (e) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid txIdList ${txIdList}`,
@@ -1024,7 +986,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       for (const txId of txIdListArr) {
         if (typeof txId !== 'string' || txId.length !== TXID_LENGTH) {
-          reply.send(
+          reply.sendJson(
             Crypto.sign({
               success: false,
               error: `Invalid txId ${txId} in the List`,
@@ -1039,7 +1001,7 @@ async function startServer(): Promise<SocketIO.Server> {
       const from = start ? parseInt(start) : 0
       const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid start and end counters`,
@@ -1049,7 +1011,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       let count = to - from
       if (count > MAX_ORIGINAL_TXS_PER_REQUEST) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Exceed maximum limit of ${MAX_ORIGINAL_TXS_PER_REQUEST} original transactions`,
@@ -1062,7 +1024,7 @@ async function startServer(): Promise<SocketIO.Server> {
       const from = startCycle ? parseInt(startCycle) : 0
       const to = endCycle ? parseInt(endCycle) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid startCycle and endCycle counters`,
@@ -1072,7 +1034,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
@@ -1090,7 +1052,7 @@ async function startServer(): Promise<SocketIO.Server> {
         if (page) {
           const page_number = parseInt(page)
           if (page_number < 1 || Number.isNaN(page_number)) {
-            reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
+            reply.sendJson(Crypto.sign({ success: false, error: `Invalid page number` }))
             return
           }
           skip = page_number - 1
@@ -1102,11 +1064,11 @@ async function startServer(): Promise<SocketIO.Server> {
     const res = Crypto.sign({
       originalTxs,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  server.get('/receipt', async (_request: ReceiptRequest, reply) => {
-    const err = Utils.validateTypes(_request.query, {
+  server.registerRoute('GET', '/receipt', async (_request, reply) => {
+    const err = Utils.validateTypes(_request.query as ReceiptQuery, {
       start: 's?',
       end: 's?',
       startCycle: 's?',
@@ -1117,14 +1079,14 @@ async function startServer(): Promise<SocketIO.Server> {
       txIdList: 's?',
     })
     if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
+      reply.sendJson(Crypto.sign({ success: false, error: err }))
       return
     }
     const { start, end, startCycle, endCycle, type, page, txId, txIdList } = _request.query
     let receipts = []
     if (txId) {
       if (txId.length !== TXID_LENGTH) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid txId ${txId}`,
@@ -1139,7 +1101,7 @@ async function startServer(): Promise<SocketIO.Server> {
       try {
         txIdListArr = JSON.parse(txIdList)
       } catch (e) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid txIdList ${txIdList}`,
@@ -1149,7 +1111,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       for (const txId of txIdListArr) {
         if (typeof txId !== 'string' || txId.length !== TXID_LENGTH) {
-          reply.send(
+          reply.sendJson(
             Crypto.sign({
               success: false,
               error: `Invalid txId ${txId} in the List`,
@@ -1164,7 +1126,7 @@ async function startServer(): Promise<SocketIO.Server> {
       const from = start ? parseInt(start) : 0
       const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid start and end counters`,
@@ -1174,7 +1136,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       let count = to - from
       if (count > MAX_RECEIPTS_PER_REQUEST) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Exceed maximum limit of ${MAX_RECEIPTS_PER_REQUEST} receipts`,
@@ -1187,7 +1149,7 @@ async function startServer(): Promise<SocketIO.Server> {
       const from = startCycle ? parseInt(startCycle) : 0
       const to = endCycle ? parseInt(endCycle) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid startCycle and endCycle counters`,
@@ -1197,7 +1159,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
@@ -1216,7 +1178,7 @@ async function startServer(): Promise<SocketIO.Server> {
         if (page) {
           const page_number = parseInt(page)
           if (page_number < 1 || Number.isNaN(page_number)) {
-            reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
+            reply.sendJson(Crypto.sign({ success: false, error: `Invalid page number` }))
             return
           }
           skip = page_number - 1
@@ -1228,52 +1190,38 @@ async function startServer(): Promise<SocketIO.Server> {
     const res = Crypto.sign({
       receipts,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  type ReceiptCountRequest = FastifyRequest<{
-    Params: {
-      count: string
-    }
-  }>
+  type ReceiptCountRequest = {
+    count: string
+  }
 
-  server.get('/receipt/:count', async (_request: ReceiptCountRequest, reply) => {
-    const err = Utils.validateTypes(_request.params, { count: 's' })
+  server.registerRoute('GET', '/receipt/:count', async (_request, reply) => {
+    const err = Utils.validateTypes(_request.params as ReceiptCountRequest, { count: 's' })
     if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
+      reply.sendJson(Crypto.sign({ success: false, error: err }))
       return
     }
 
     const count: number = parseInt(_request.params.count)
     if (count <= 0 || Number.isNaN(count)) {
-      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
     if (count > MAX_RECEIPTS_PER_REQUEST) {
-      reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_RECEIPTS_PER_REQUEST}` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Max count is ${MAX_RECEIPTS_PER_REQUEST}` }))
       return
     }
     const receipts = await ReceiptDB.queryLatestReceipts(count)
     const res = Crypto.sign({
       receipts,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  type AccountRequest = FastifyRequest<{
-    Querystring: {
-      start: string
-      end: string
-      startCycle: string
-      endCycle: string
-      type: string
-      page: string
-      accountId: string
-    }
-  }>
-
-  server.get('/account', async (_request: AccountRequest, reply) => {
-    const err = Utils.validateTypes(_request.query, {
+  server.registerRoute('GET', '/account', async (_request, reply) => {
+    const err = Utils.validateTypes(_request.query as AccountQuery, {
       start: 's?',
       end: 's?',
       startCycle: 's?',
@@ -1283,7 +1231,7 @@ async function startServer(): Promise<SocketIO.Server> {
       accountId: 's?',
     })
     if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
+      reply.sendJson(Crypto.sign({ success: false, error: err }))
       return
     }
     let accounts = []
@@ -1294,7 +1242,7 @@ async function startServer(): Promise<SocketIO.Server> {
       const from = start ? parseInt(start) : 0
       const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid start and end counters`,
@@ -1304,7 +1252,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       let count = to - from
       if (count > MAX_ACCOUNTS_PER_REQUEST) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Exceed maximum limit of ${MAX_ACCOUNTS_PER_REQUEST} accounts`,
@@ -1320,7 +1268,7 @@ async function startServer(): Promise<SocketIO.Server> {
       const from = startCycle ? parseInt(startCycle) : 0
       const to = endCycle ? parseInt(endCycle) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid start and end counters`,
@@ -1330,7 +1278,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles to query accounts Count`,
@@ -1342,7 +1290,7 @@ async function startServer(): Promise<SocketIO.Server> {
       if (page) {
         const page_number = parseInt(page)
         if (page_number < 1 || Number.isNaN(page_number)) {
-          reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
+          reply.sendJson(Crypto.sign({ success: false, error: `Invalid page number` }))
           return
         }
         let skip = page_number - 1
@@ -1361,46 +1309,44 @@ async function startServer(): Promise<SocketIO.Server> {
         accounts,
       })
     } else {
-      reply.send({
+      reply.sendJson({
         success: false,
         error: 'not specified which account to show',
       })
       return
     }
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  type AccountCountRequest = FastifyRequest<{
-    Params: {
-      count: string
-    }
-  }>
+  type AccountCountRequest = {
+    count: string
+  }
 
-  server.get('/account/:count', async (_request: AccountCountRequest, reply) => {
-    const err = Utils.validateTypes(_request.params, { count: 's' })
+  server.registerRoute('GET', '/account/:count', async (_request, reply) => {
+    const err = Utils.validateTypes(_request.params as AccountCountRequest, { count: 's' })
     if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
+      reply.sendJson(Crypto.sign({ success: false, error: err }))
       return
     }
 
     const count: number = parseInt(_request.params.count)
     if (count <= 0 || Number.isNaN(count)) {
-      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
     if (count > MAX_ACCOUNTS_PER_REQUEST) {
-      reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_ACCOUNTS_PER_REQUEST}` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Max count is ${MAX_ACCOUNTS_PER_REQUEST}` }))
       return
     }
     const accounts = await AccountDB.queryLatestAccounts(count)
     const res = Crypto.sign({
       accounts,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  server.get('/transaction', async (_request: TransactionRequest, reply) => {
-    const err = Utils.validateTypes(_request.query, {
+  server.registerRoute('GET', '/transaction', async (_request, reply) => {
+    const err = Utils.validateTypes(_request.query as TransactionQuery, {
       start: 's?',
       end: 's?',
       txId: 's?',
@@ -1410,7 +1356,7 @@ async function startServer(): Promise<SocketIO.Server> {
       page: 's?',
     })
     if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
+      reply.sendJson(Crypto.sign({ success: false, error: err }))
       return
     }
     const { start, end, txId, accountId, startCycle, endCycle, page } = _request.query
@@ -1421,7 +1367,7 @@ async function startServer(): Promise<SocketIO.Server> {
       const from = start ? parseInt(start) : 0
       const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid start and end counters`,
@@ -1431,7 +1377,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       let count = to - from
       if (count > MAX_ACCOUNTS_PER_REQUEST) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Exceed maximum limit of ${MAX_ACCOUNTS_PER_REQUEST} transactions`,
@@ -1447,7 +1393,7 @@ async function startServer(): Promise<SocketIO.Server> {
       const from = startCycle ? parseInt(startCycle) : 0
       const to = endCycle ? parseInt(endCycle) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Invalid start and end counters`,
@@ -1457,7 +1403,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
+        reply.sendJson(
           Crypto.sign({
             success: false,
             error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles to query transactions Count`,
@@ -1469,7 +1415,7 @@ async function startServer(): Promise<SocketIO.Server> {
       if (page) {
         const page_number = parseInt(page)
         if (page_number < 1 || Number.isNaN(page_number)) {
-          reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
+          reply.sendJson(Crypto.sign({ success: false, error: `Invalid page number` }))
           return
         }
         let skip = page_number - 1
@@ -1499,45 +1445,43 @@ async function startServer(): Promise<SocketIO.Server> {
         error: 'not specified which account to show',
       }
     }
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  type TransactionCountRequest = FastifyRequest<{
-    Params: {
-      count: string
-    }
-  }>
+  type TransactionCountRequest = {
+    count: string
+  }
 
-  server.get('/transaction/:count', async (_request: TransactionCountRequest, reply) => {
-    const err = Utils.validateTypes(_request.params, { count: 's' })
+  server.registerRoute('GET', '/transaction/:count', async (_request, reply) => {
+    const err = Utils.validateTypes(_request.params as TransactionCountRequest, { count: 's' })
     if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
+      reply.sendJson(Crypto.sign({ success: false, error: err }))
       return
     }
 
     const count: number = parseInt(_request.params.count)
     if (count <= 0 || Number.isNaN(count)) {
-      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
     if (count > MAX_ACCOUNTS_PER_REQUEST) {
-      reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_ACCOUNTS_PER_REQUEST}` }))
+      reply.sendJson(Crypto.sign({ success: false, error: `Max count is ${MAX_ACCOUNTS_PER_REQUEST}` }))
       return
     }
     const transactions = await TransactionDB.queryLatestTransactions(count)
     const res = Crypto.sign({
       transactions,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  server.get('/totalData', async (_request, reply) => {
+  server.registerRoute('GET', '/totalData', async (_request, reply) => {
     const totalCycles = await CycleDB.queryCyleCount()
     const totalAccounts = await AccountDB.queryAccountCount()
     const totalTransactions = await TransactionDB.queryTransactionCount()
     const totalReceipts = await ReceiptDB.queryReceiptCount()
     const totalOriginalTxs = await OriginalTxDB.queryOriginalTxDataCount()
-    reply.send({
+    reply.sendJson({
       totalCycles,
       totalAccounts,
       totalTransactions,
@@ -1546,36 +1490,30 @@ async function startServer(): Promise<SocketIO.Server> {
     })
   })
 
-  type GossipDataRequest = FastifyRequest<{
-    Body: GossipData.GossipData
-  }>
+  type GossipDataRequest = GossipData.GossipData
 
-  server.post('/gossip-data', async (_request: GossipDataRequest, reply) => {
-    const gossipPayload = _request.body
+  server.registerRoute('POST', '/gossip-data', async (_request, reply) => {
+    const gossipPayload = _request.body as unknown as GossipDataRequest
     if (config.VERBOSE) Logger.mainLogger.debug('Gossip Data received', JSON.stringify(gossipPayload))
     const result = Collector.validateGossipData(gossipPayload)
     if (!result.success) {
-      reply.send(Crypto.sign({ success: false, error: result.error }))
+      reply.sendJson(Crypto.sign({ success: false, error: result.error }))
       return
     }
     const res = Crypto.sign({
       success: true,
     })
-    reply.send(res)
+    reply.sendJson(res)
     Collector.processGossipData(gossipPayload)
   })
 
-  type AccountDataRequest = FastifyRequest<{
-    Body: AccountDataProvider.AccountDataRequestSchema | AccountDataProvider.AccountDataByListRequestSchema
-  }>
-
-  server.post('/get_account_data_archiver', async (_request: AccountDataRequest, reply) => {
-    const payload = _request.body as AccountDataProvider.AccountDataRequestSchema
+  server.registerRoute('POST', '/get_account_data_archiver', async (_request, reply) => {
+    const payload = _request.body as unknown as AccountDataProvider.AccountDataRequestSchema
     if (config.VERBOSE) Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
     const result = AccountDataProvider.validateAccountDataRequest(payload)
     // Logger.mainLogger.debug('Account Data validation result', result)
     if (!result.success) {
-      reply.send(Crypto.sign({ success: false, error: result.error }))
+      reply.sendJson(Crypto.sign({ success: false, error: result.error }))
       return
     }
     const data = await AccountDataProvider.provideAccountDataRequest(payload)
@@ -1584,16 +1522,16 @@ async function startServer(): Promise<SocketIO.Server> {
       success: true,
       data,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  server.post('/get_account_data_by_list_archiver', async (_request: AccountDataRequest, reply) => {
-    const payload = _request.body as AccountDataProvider.AccountDataByListRequestSchema
+  server.registerRoute('POST', '/get_account_data_by_list_archiver', async (_request, reply) => {
+    const payload = _request.body as unknown as AccountDataProvider.AccountDataByListRequestSchema
     if (config.VERBOSE) Logger.mainLogger.debug('Account Data By List received', JSON.stringify(payload))
     const result = AccountDataProvider.validateAccountDataByListRequest(payload)
     // Logger.mainLogger.debug('Account Data By List validation result', result)
     if (!result.success) {
-      reply.send(Crypto.sign({ success: false, error: result.error }))
+      reply.sendJson(Crypto.sign({ success: false, error: result.error }))
       return
     }
     const accountData = await AccountDataProvider.provideAccountDataByListRequest(payload)
@@ -1602,163 +1540,102 @@ async function startServer(): Promise<SocketIO.Server> {
       success: true,
       accountData,
     })
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  server.post('/get_globalaccountreport_archiver', async (_request: AccountDataRequest, reply) => {
-    const payload = _request.body as AccountDataProvider.GlobalAccountReportRequestSchema
+  server.registerRoute('POST', '/get_globalaccountreport_archiver', async (_request, reply) => {
+    const payload = _request.body as unknown as AccountDataProvider.GlobalAccountReportRequestSchema
     if (config.VERBOSE) Logger.mainLogger.debug('Global Account Report received', JSON.stringify(payload))
     const result = AccountDataProvider.validateGlobalAccountReportRequest(payload)
     // Logger.mainLogger.debug('Global Account Report validation result', result)
     if (!result.success) {
-      reply.send(Crypto.sign({ success: false, error: result.error }))
+      reply.sendJson(Crypto.sign({ success: false, error: result.error }))
       return
     }
     const report = await AccountDataProvider.provideGlobalAccountReportRequest()
     // Logger.mainLogger.debug('Global Account Report result', report)
     const res = Crypto.sign(report)
-    reply.send(res)
+    reply.sendJson(res)
   })
 
-  // [TODO] Remove this before production
-  // server.get('/exit', (_request, reply) => {
-  //   reply.send('Shutting down...')
-  //   process.exit()
-  // })
+  // // [TODO] Remove this before production
+  // // server.get('/exit', (_request, reply) => {
+  // //   reply.send('Shutting down...')
+  // //   process.exit()
+  // // })
 
-  // [TODO] Remove this before production
-  server.get(
-    '/nodeids',
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (_request, reply) => {
-      reply.send(NodeList.byId)
-    }
-  )
+  // // [TODO] Remove this before production
+  server.registerRoute('GET', '/nodeids', [isDebugMiddleware], (_request, reply) => {
+    reply.sendJson(NodeList.byId)
+  })
 
-  // Config Endpoint
-  server.get(
-    '/config',
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (_request, reply) => {
-      const res = Crypto.sign(config)
-      reply.send(res)
-    }
-  )
+  // // Config Endpoint
+  server.registerRoute('GET', '/config', [isDebugMiddleware], (_request, reply) => {
+    const res = Crypto.sign(config)
+    reply.sendJson(res)
+  })
 
   // dataSenders Endpoint
-  server.get(
-    '/dataSenders',
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (_request, reply) => {
-      const data = {
-        dataSendersSize: Data.dataSenders.size,
-        socketClientsSize: Data.socketClients.size,
-      }
-      if (_request.query && _request.query['dataSendersList'] === 'true')
-        data['dataSendersList'] = Array.from(Data.dataSenders.values()).map(
-          (item) => item.nodeInfo.ip + ':' + item.nodeInfo.port
-        )
-      const res = Crypto.sign(data)
-      reply.send(res)
+  server.registerRoute('GET', '/dataSenders', [isDebugMiddleware], (_request, reply) => {
+    const data = {
+      dataSendersSize: Data.dataSenders.size,
+      socketClientsSize: Data.socketClients.size,
     }
-  )
+    if (_request.query && _request.query['dataSendersList'] === 'true')
+      data['dataSendersList'] = Array.from(Data.dataSenders.values()).map(
+        (item) => item.nodeInfo.ip + ':' + item.nodeInfo.port
+      )
+    const res = Crypto.sign(data)
+    reply.sendJson(res)
+  })
 
   const enableLoseYourself = false // set this to `true` during testing, but never commit as `true`
 
-  server.get(
-    '/lose-yourself',
-    // this debug endpoint is in support of development and testing of
-    // lost archiver detection
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (_request, reply) => {
-      if (enableLoseYourself) {
-        Logger.mainLogger.debug('/lose-yourself: exit(1)')
+  server.registerRoute('GET', '/lose-yourself', [isDebugMiddleware], (_request, reply) => {
+    if (enableLoseYourself) {
+      Logger.mainLogger.debug('/lose-yourself: exit(1)')
 
-        reply.send(Crypto.sign({ status: 'success', message: 'will exit' }))
+      reply.send(Crypto.sign({ status: 'success', message: 'will exit' }))
 
-        // We don't call exitArchiver() here because that awaits Data.sendLeaveRequest(...),
-        // but we're simulating a lost node.
-        process.exit(1)
-      } else {
-        Logger.mainLogger.debug('/lose-yourself: not enabled. no action taken.')
-        reply.send(Crypto.sign({ status: 'failure', message: 'not enabled' }))
-        // set enableLoseYourself to true--but never commit!
-      }
+      // We don't call exitArchiver() here because that awaits Data.sendLeaveRequest(...),
+      // but we're simulating a lost node.
+      process.exit(1)
+    } else {
+      Logger.mainLogger.debug('/lose-yourself: not enabled. no action taken.')
+      reply.send(Crypto.sign({ status: 'failure', message: 'not enabled' }))
+      // set enableLoseYourself to true--but never commit!
     }
-  )
+  })
 
-  // ping the archiver to see if it's alive
-  server.get(
-    '/ping',
-    // this debug endpoint is in support of development and testing of
-    // lost archiver detection
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (request, reply) => {
-      if (reachabilityAllowed) {
-        reply.status(200).send('pong!')
-      } else {
-        request.raw.socket.destroy()
-      }
+  // // ping the archiver to see if it's alive
+  server.registerRoute('GET', '/ping', [isDebugMiddleware], (request, reply) => {
+    if (reachabilityAllowed) {
+      reply.send('pong!')
+    } else {
+      request.socket.destroy()
     }
-  )
+  })
 
-  server.get(
-    '/set-reachability',
-    {
-      schema: {
-        querystring: {
-          properties: {
-            value: {
-              type: 'boolean',
-            },
-          },
-        },
-      },
-      preHandler: async (request, reply) => {
-        isDebugMiddleware(request, reply)
-      },
-    },
-    async (request, reply) => {
-      const msg = `/set-reachability`
+  server.registerRoute('GET', '/set-reachability', [isDebugMiddleware], async (request, reply) => {
+    const msg = `/set-reachability`
+    console.log(msg)
+    Logger.mainLogger.info(msg)
+    const value = (request.query as unknown as { value: boolean }).value
+    if (typeof value !== 'boolean') {
+      Logger.mainLogger.info('/set-reachability: value must be a boolean')
+      reply.send('value must be a boolean', 400)
+    } else {
+      const msg = `/set-reachability: ${value}`
       console.log(msg)
       Logger.mainLogger.info(msg)
-      const value = (request.query as { value: boolean }).value
-      if (typeof value !== 'boolean') {
-        Logger.mainLogger.info('/set-reachability: value must be a boolean')
-        reply.status(400).send('value must be a boolean')
-      } else {
-        const msg = `/set-reachability: ${value}`
-        console.log(msg)
-        Logger.mainLogger.info(msg)
-        reachabilityAllowed = value
-      }
+      reachabilityAllowed = value
     }
-  )
+  })
 
   // Old snapshot ArchivedCycle endpoint;
   if (!config.experimentalSnapshot) {
-    server.get('/full-archive', async (_request: FullArchiveRequest, reply) => {
-      const err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    server.registerRoute('GET', '/full-archive', async (_request, reply) => {
+      const err = Utils.validateTypes(_request.query as FullArchiveQuery, { start: 's', end: 's' })
       if (err) {
         reply.send(Crypto.sign({ success: false, error: err }))
         return
@@ -1788,88 +1665,80 @@ async function startServer(): Promise<SocketIO.Server> {
       reply.send(res)
     })
 
-    type FullArchiveCountRequest = FastifyRequest<{
-      Params: {
-        count: string
-      }
-    }>
+    type FullArchiveCountRequest = {
+      count: string
+    }
 
-    server.get('/full-archive/:count', async (_request: FullArchiveCountRequest, reply) => {
-      const err = Utils.validateTypes(_request.params, { count: 's' })
+    server.registerRoute('GET', '/full-archive/:count', async (_request, reply) => {
+      const err = Utils.validateTypes(_request.params as FullArchiveCountRequest, { count: 's' })
       if (err) {
-        reply.send(Crypto.sign({ success: false, error: err }))
+        reply.sendJson(Crypto.sign({ success: false, error: err }))
         return
       }
 
       const count: number = parseInt(_request.params.count)
       if (count <= 0 || Number.isNaN(count)) {
-        reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+        reply.sendJson(Crypto.sign({ success: false, error: `Invalid count` }))
         return
       }
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_BETWEEN_CYCLES_PER_REQUEST}` }))
+        reply.sendJson(
+          Crypto.sign({ success: false, error: `Max count is ${MAX_BETWEEN_CYCLES_PER_REQUEST}` })
+        )
         return
       }
       const archivedCycles = await Storage.queryAllArchivedCycles(count)
       const res = Crypto.sign({
         archivedCycles,
       })
-      reply.send(res)
+      reply.sendJson(res)
     })
 
-    type GossipHashesRequest = FastifyRequest<{
-      Body: {
-        sender: string
-        data: any // eslint-disable-line @typescript-eslint/no-explicit-any
-      }
-    }>
+    type GossipHashesRequest = {
+      sender: string
+      data: any // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
 
-    server.post('/gossip-hashes', async (_request: GossipHashesRequest, reply) => {
-      const gossipMessage = _request.body
+    server.registerRoute('POST', '/gossip-hashes', async (_request, reply) => {
+      const gossipMessage = _request.body as unknown as GossipHashesRequest
       Logger.mainLogger.debug('Gossip received', JSON.stringify(gossipMessage))
       addHashesGossip(gossipMessage.sender, gossipMessage.data)
       const res = Crypto.sign({
         success: true,
       })
-      reply.send(res)
+      reply.sendJson(res)
     })
   }
 
-  type GetNetworkAccountRequest = FastifyRequest<{
-    Querystring: { hash: 'true' | 'false' }
-  }>
-
-  server.get('/get-network-account', (_request: GetNetworkAccountRequest, reply) => {
-    const useHash = _request.query?.hash !== 'false'
+  server.registerRoute('GET', '/get-network-account', (_request, reply) => {
+    const { hash } = _request.query
+    const useHash = hash !== 'false'
 
     const response = useHash
       ? { networkAccountHash: getGlobalNetworkAccount(useHash) }
       : { networkAccount: getGlobalNetworkAccount(useHash) }
 
     // We might want to sign this response
-    reply.send(Crypto.sign(response))
+    const res = Crypto.sign(response)
+    reply.sendJson(res)
   })
 
   // Start server and bind to port on all interfaces
-  server.listen(
-    {
-      port: config.ARCHIVER_PORT,
-      host: '0.0.0.0',
-    },
-    (err) => {
+  server.start(() => {
       Logger.mainLogger.debug('Listening', config.ARCHIVER_PORT)
-      if (err) {
-        server.log.error(err)
-        process.exit(1)
-      }
       Logger.mainLogger.debug('Archive-server has started.')
       State.setActive()
       State.addSigListeners()
       Collector.scheduleCacheCleanup()
       Collector.scheduleMissingTxsDataQuery()
-    }
+    },
+      (err) => {
+        // server.log.error(err)
+        process.exit(1)
+      }
   )
   return io
 }
 
 start()
+

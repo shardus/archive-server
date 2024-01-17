@@ -1,4 +1,4 @@
-import * as fastify from 'fastify'
+import { Server } from '../http/Server'
 import { stringifyReduce } from './StringifyReduce'
 import * as core from '@shardus/crypto-utils'
 
@@ -24,9 +24,9 @@ class NestedCounters {
   eventCounters: Map<string, CounterNode>
   rareEventCounters: Map<string, CounterNode>
   infLoopDebug: boolean
-  server: fastify.FastifyInstance
+  server: Server
 
-  constructor(server: fastify.FastifyInstance) {
+  constructor(server: Server) {
     // this.sectionTimes = {}
     this.eventCounters = new Map()
     this.rareEventCounters = new Map()
@@ -35,20 +35,15 @@ class NestedCounters {
   }
 
   registerEndpoints(): void {
-    this.server.get('/counts', (req, res) => {
+    this.server.registerRoute('GET', '/counts', (req, res) => {
       let outputStr = ''
       const arrayReport = this.arrayitizeAndSort(this.eventCounters)
       outputStr += `${Date.now()}\n`
       outputStr = this.printArrayReport(arrayReport, outputStr, 0)
-      res.send(outputStr)
+      res.end(outputStr)
     })
-    this.server.get('/counts-reset', (req, res) => {
-      this.eventCounters = new Map()
-      res.send(`counts reset ${Date.now()}`)
-    })
-
-    this.server.get('/debug-inf-loop', (req, res) => {
-      res.send('starting inf loop, goodbye')
+    this.server.registerRoute('GET', '/debug-inf-loop', (req, res) => {
+      res.end('starting inf loop, goodbye')
       this.infLoopDebug = true
       while (this.infLoopDebug) {
         const s = 'asdf'
@@ -58,9 +53,9 @@ class NestedCounters {
       }
     })
 
-    this.server.get('/debug-inf-loop-off', (req, res) => {
+    this.server.registerRoute('GET', '/debug-inf-loop-off', (req, res) => {
       this.infLoopDebug = false
-      res.send('stopping inf loop, who knows if this is possible')
+      res.end('stopping inf loop, who knows if this is possible')
     })
   }
 

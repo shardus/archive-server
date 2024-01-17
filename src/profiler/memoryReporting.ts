@@ -1,11 +1,11 @@
 import { statisticsInstance } from '../statistics'
 
 import * as os from 'os'
-import * as fastify from 'fastify'
 import { resourceUsage } from 'process'
 import { getActiveList } from '../NodeList'
 import { spawn } from 'child_process'
 import * as process from 'process'
+import { Server } from '../http/Server'
 
 type CounterMap = Map<string, CounterNode>
 interface CounterNode {
@@ -29,16 +29,16 @@ type MemItem = {
 class MemoryReporting {
   report: MemItem[]
   lastCPUTimes: object[]
-  server: fastify.FastifyInstance
+  server: Server
 
-  constructor(server: fastify.FastifyInstance) {
+  constructor(server: Server) {
     this.report = []
     this.server = server
     this.lastCPUTimes = this.getCPUTimes()
   }
 
   registerEndpoints(): void {
-    this.server.get('/memory', (req, res) => {
+    this.server.registerRoute('get', '/memory-report', (req, res) => {
       const toMB = 1 / 1000000
       const report = process.memoryUsage()
       let outputStr = ''
@@ -68,11 +68,10 @@ class MemoryReporting {
     //     }
     //     res.end()
     // })
-
-    this.server.get('/top', (req, res) => {
+    this.server.registerRoute('GET', '/top', (req, res) => {
       const top = spawn('top', ['-n', '10'])
       top.stdout.on('data', (dataBuffer) => {
-        res.send(dataBuffer.toString())
+        res.end(dataBuffer.toString())
         top.kill()
       })
       top.on('close', (code) => {
@@ -80,15 +79,15 @@ class MemoryReporting {
       })
       top.stderr.on('data', (data) => {
         console.log('top command error', data)
-        res.send('top command error')
+        res.end('top command error')
         top.kill()
       })
     })
 
-    this.server.get('/df', (req, res) => {
+    this.server.registerRoute('GET', '/df', (req, res) => {
       const df = spawn('df')
       df.stdout.on('data', (dataBuffer) => {
-        res.send(dataBuffer.toString())
+        res.end(dataBuffer.toString())
         df.kill()
       })
       df.on('close', (code) => {
@@ -96,7 +95,7 @@ class MemoryReporting {
       })
       df.stderr.on('data', (data) => {
         console.log('df command error', data)
-        res.send('df command error')
+        res.end('df command error')
         df.kill()
       })
     })

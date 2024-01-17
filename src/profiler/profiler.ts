@@ -1,5 +1,5 @@
 import { nestedCountersInstance } from './nestedCounters'
-import * as fastify from 'fastify'
+import { Server } from '../http/Server'
 
 const profilerSelfReporting = false
 
@@ -20,9 +20,9 @@ class Profiler {
   stackHeight: number
   netInternalStackHeight: number
   netExternalStackHeight: number
-  server: fastify.FastifyInstance
+  server: Server
 
-  constructor(server: fastify.FastifyInstance) {
+  constructor(server: Server) {
     this.sectionTimes = {}
     this.eventCounters = new Map()
     this.stackHeight = 0
@@ -35,9 +35,9 @@ class Profiler {
   }
 
   registerEndpoints(): void {
-    this.server.get('/perf', (req, res) => {
+    this.server.registerRoute('GET', '/perf', (req, res) => {
       const result = this.printAndClearReport()
-      res.send(result)
+      res.end(result)
     })
   }
 
