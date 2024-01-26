@@ -93,6 +93,7 @@
     "tydb": "^0.1.5"
   },
   "overrides": {
-    "axios": "1.6.1"
+    "axios": "1.6.1",
+    "follow-redirects":  "1.15.4"
   }
 }
