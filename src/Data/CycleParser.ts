@@ -9,7 +9,7 @@ export enum NodeStatus {
 
 type OptionalExceptFor<T, TRequired extends keyof T> = Partial<T> & Pick<T, TRequired>
 
-export interface Node extends NodeList.JoinedConsensor {
+export interface Node extends NodeList.SelectedConsensor {
   curvePublicKey: string
   status: NodeStatus
 }
@@ -17,7 +17,7 @@ export interface Node extends NodeList.JoinedConsensor {
 export type Update = OptionalExceptFor<Node, 'id'>
 
 export interface Change {
-  added: NodeList.JoinedConsensor[] // order joinRequestTimestamp [OLD, ..., NEW]
+  added: NodeList.SelectedConsensor[] // order joinRequestTimestamp [OLD, ..., NEW]
   removed: Array<string> // order doesn't matter
   updated: Update[] // order doesn't matter
 }
@@ -109,36 +109,36 @@ export function parseRecord(record: P2P.CycleCreatorTypes.CycleRecord): Change {
   const refreshUpdated: Change['updated'] = []
   for (const refreshed of record.refreshedConsensors) {
     // const node = NodeList.nodes.get(refreshed.id)
-    const node = NodeList.getNodeInfoById(refreshed.id) as NodeList.JoinedConsensor
+    const node = NodeList.getNodeInfoById(refreshed.id) as NodeList.SelectedConsensor
     if (node) {
-      // If it's in our node list, we update its counterRefreshed
-      // (IMPORTANT: update counterRefreshed only if its greater than ours)
-      if (record.counter > node.counterRefreshed) {
+      // If it's in our node list, we update its counterSelected
+      // (IMPORTANT: update counterSelected only if its greater than ours)
+      if (record.counter > node.counterSelected) {
         refreshUpdated.push({
           id: refreshed.id,
-          counterRefreshed: record.counter,
+          counterSelected: record.counter,
         })
       }
     } else {
       // If it's not in our node list, we add it...
       refreshAdded.push(NodeList.fromP2PTypesNode(refreshed))
       // and immediately update its status to ACTIVE
-      // (IMPORTANT: update counterRefreshed to the records counter)
+      // (IMPORTANT: update counterSelected to the records counter)
       refreshUpdated.push({
         id: refreshed.id,
         status: NodeStatus.ACTIVE,
-        counterRefreshed: record.counter,
+        counterSelected: record.counter,
       })
     }
   }
   // Logger.mainLogger.debug('parseRecord', record.counter, {
-  //   added: [...record.joinedConsensors],
+  //   added: [...record.selectedConsensors],
   //   removed: [...record.apoptosized],
   //   updated: [...activated, ...refreshUpdated],
   // })
 
-  const added = (record.joinedConsensors || []).map((joinedConsensor: P2P.JoinTypes.JoinedConsensor) =>
-    NodeList.fromP2PTypesJoinedConsensor(joinedConsensor)
+  const added = (record.selectedConsensors || []).map((selectedConsensor: P2P.JoinTypes.SelectedConsensor) =>
+    NodeList.fromP2PTypesJoinedConsensor(selectedConsensor)
   )
 
   return {
@@ -158,18 +158,18 @@ export function parse(record: P2P.CycleCreatorTypes.CycleRecord): Change {
 export function applyNodeListChange(change: Change): void {
   // console.log('change', change)
   if (change.added.length > 0) {
-    const nodesBycycleJoined: { [cycleJoined: number]: NodeList.JoinedConsensor[] } = {}
+    const nodesBycycleJoined: { [cycleJoined: number]: NodeList.SelectedConsensor[] } = {}
     for (const node of change.added) {
-      const joinedConsensor: NodeList.JoinedConsensor = node
+      const selectedConsensor: NodeList.SelectedConsensor = node
       const consensorInfo: object = {
-        ip: joinedConsensor.externalIp,
-        port: joinedConsensor.externalPort,
-        publicKey: joinedConsensor.publicKey,
-        id: joinedConsensor.id,
+        ip: selectedConsensor.externalIp,
+        port: selectedConsensor.externalPort,
+        publicKey: selectedConsensor.publicKey,
+        id: selectedConsensor.id,
       }
-      if (!nodesBycycleJoined[joinedConsensor.cycleJoined]) {
-        nodesBycycleJoined[joinedConsensor.cycleJoined] = [consensorInfo]
-      } else nodesBycycleJoined[joinedConsensor.cycleJoined].push(consensorInfo)
+      if (!nodesBycycleJoined[selectedConsensor.cycleJoined]) {
+        nodesBycycleJoined[selectedConsensor.cycleJoined] = [consensorInfo]
+      } else nodesBycycleJoined[selectedConsensor.cycleJoined].push(consensorInfo)
     }
 
     for (const cycleJoined in nodesBycycleJoined) {
@@ -208,7 +208,7 @@ export function activeNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord): numbe
 export function totalNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord): number {
   return (
     cycle.syncing +
-    cycle.joinedConsensors.length +
+    cycle.selectedConsensors.length +
     cycle.active +
     //    cycle.activated.length -      // don't count activated because it was already counted in syncing
     -cycle.apoptosized.length +

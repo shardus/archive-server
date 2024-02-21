@@ -226,7 +226,7 @@ export interface JoinedConsensor extends P2PNode {
 
 function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   const {
-    joinedConsensors,
+    selectedConsensors,
     activatedPublicKeys,
     removed,
     appRemoved,
@@ -240,7 +240,7 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
     lostAfterSelection,
   } = cycle
 
-  const consensorInfos = joinedConsensors.map((jc) => ({
+  const consensorInfos = selectedConsensors.map((jc) => ({
     ip: jc.externalIp,
     port: jc.externalPort,
     publicKey: jc.publicKey,

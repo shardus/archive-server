@@ -40,9 +40,9 @@ export interface SignedList {
   nodeList: ConsensusNodeInfo[]
 }
 
-export interface JoinedConsensor extends ConsensusNodeInfo {
+export interface SelectedConsensor extends ConsensusNodeInfo {
   cycleJoined: string
-  counterRefreshed: number
+  counterSelected: number
   id: string
 }
 
@@ -52,19 +52,19 @@ export const byAscendingPublicKey = (a: State.ArchiverNodeInfo, b: State.Archive
   a.publicKey > b.publicKey ? 1 : -1
 
 export const fromP2PTypesJoinedConsensor = (
-  joinedConsensor: P2PTypes.JoinTypes.JoinedConsensor
-): JoinedConsensor => ({
-  ip: joinedConsensor.internalIp,
-  port: joinedConsensor.internalPort,
-  publicKey: joinedConsensor.publicKey,
-  id: joinedConsensor.id,
-  externalIp: joinedConsensor.externalIp,
-  externalPort: joinedConsensor.externalPort,
-  cycleJoined: joinedConsensor.cycleJoined,
-  counterRefreshed: joinedConsensor.counterRefreshed,
+  selectedConsensors: P2PTypes.JoinTypes.SelectedConsensor
+): SelectedConsensor => ({
+  ip: selectedConsensors.internalIp,
+  port: selectedConsensors.internalPort,
+  publicKey: selectedConsensors.publicKey,
+  id: selectedConsensors.id,
+  externalIp: selectedConsensors.externalIp,
+  externalPort: selectedConsensors.externalPort,
+  cycleJoined: selectedConsensors.cycleJoined,
+  counterSelected: selectedConsensors.counterSelected,
 })
 
-export const fromP2PTypesNode = (node: P2PTypes.NodeListTypes.Node): JoinedConsensor => ({
+export const fromP2PTypesNode = (node: P2PTypes.NodeListTypes.Node): SelectedConsensor => ({
   ip: node.internalIp,
   port: node.internalPort,
   publicKey: node.publicKey,
@@ -72,7 +72,7 @@ export const fromP2PTypesNode = (node: P2PTypes.NodeListTypes.Node): JoinedConse
   externalIp: node.externalIp,
   externalPort: node.externalPort,
   cycleJoined: node.cycleJoined,
-  counterRefreshed: node.counterRefreshed,
+  counterSelected: node.counterSelected,
 })
 
 // STATE
@@ -112,7 +112,7 @@ export function isEmpty(): boolean {
   return list.length <= 0
 }
 
-type Node = ConsensusNodeInfo | JoinedConsensor
+type Node = ConsensusNodeInfo | SelectedConsensor
 
 export function addNodes(status: NodeStatus, nodes: Node[]): void {
   if (nodes.length === 0) return
@@ -164,7 +164,7 @@ export function addNodes(status: NodeStatus, nodes: Node[]): void {
     }
   }
 }
-export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | JoinedConsensor[]): void {
+export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | SelectedConsensor[]): void {
   if (nodes.length === 0) return
   Logger.mainLogger.debug('Refreshing nodes', nodes.length, nodes)
   for (const node of nodes) {
