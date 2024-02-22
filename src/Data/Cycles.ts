@@ -164,7 +164,7 @@ export const validateCycleData = (cycleRecord: P2PTypes.CycleCreatorTypes.CycleD
     expired: 'n',
     joined: 'a',
     joinedArchivers: 'a',
-    joinedConsensors: 'a',
+    selectedConsensors: 'a',
     leavingArchivers: 'a',
     lost: 'a',
     lostSyncing: 'a',

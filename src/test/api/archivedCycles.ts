@@ -58,7 +58,7 @@ const expectedValue = {
     expired: 5,
     joined: [],
     joinedArchivers: [],
-    joinedConsensors: [],
+    selectedConsensors: [],
     leavingArchivers: [],
     lost: [],
     marker: 'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
