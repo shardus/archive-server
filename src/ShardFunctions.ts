@@ -1439,38 +1439,34 @@ class ShardFunctions {
     partition: number,
     exclude: string[],
     activeNodes: P2P.NodeListTypes.Node[]
-  ): P2P.NodeListTypes.Node[] {
+    ): P2P.NodeListTypes.Node[] {
     const results = [] as P2P.NodeListTypes.Node[]
 
     // TODO perf.  (may be tricky to improve), should probably be part of a comprehensive set of improvements that consider networks with millions of nodes
     // -is there a smart way to cache results.
     // -is there a more efficient way to pre calculate this (but keep in mind we may need to be lazy about shard calculations in the future)
     // -  instead of looking at all nodes could we pick a staring point and expand our search
-    for (let i = 0; i < activeNodes.length; i++) {
-      // eslint-disable-next-line security/detect-object-injection
-      const node = activeNodes[i]
-
-      if (exclude.includes(node.id)) {
-        continue
+    const excludeSet = new Set(exclude); // Convert to Set for faster lookup
+    const partitionCache = new Map(); // Cache for storing calculated partitions
+  
+    const filteredNodes = activeNodes.filter(node => !excludeSet.has(node.id));
+  
+    for (const node of filteredNodes) {
+      const nodeShardData = nodeShardDataMap.get(node.id);
+      if (!nodeShardData || !nodeShardData.storedPartitions) {
+        if (partitionCache.has(node.id)) {
+          nodeShardData.storedPartitions = partitionCache.get(node.id);
+        } else {
+          const partitions = ShardFunctions.calculateStoredPartitions2(shardGlobals, nodeShardData.homePartition);
+          partitionCache.set(node.id, partitions);
+          nodeShardData.storedPartitions = partitions;
+        }
       }
-      const nodeShardData = nodeShardDataMap.get(node.id)
-
-      if (nodeShardData == null) {
-        continue
+      if (ShardFunctions.testInRange(partition, nodeShardData.storedPartitions)) {
+        results.push(node);
       }
-      if (nodeShardData.storedPartitions == null) {
-        nodeShardData.storedPartitions = ShardFunctions.calculateStoredPartitions2(
-          shardGlobals,
-          nodeShardData.homePartition
-        )
-      }
-      if (ShardFunctions.testInRange(partition, nodeShardData.storedPartitions) !== true) {
-        continue
-      }
-
-      results.push(node)
     }
-    return results
+    return results;
   }
 
   static getCombinedNodeLists(
