@@ -12,7 +12,9 @@ import { SignedObject } from '@shardus/crypto-utils'
 export enum NodeStatus {
   STANDBY = 'standby',
   ACTIVE = 'active',
+  READY = 'ready',
   SYNCING = 'syncing',
+  SELECTED = 'selected',
 }
 
 export interface ConsensusNodeInfo {
@@ -79,7 +81,9 @@ export const fromP2PTypesNode = (node: P2PTypes.NodeListTypes.Node): JoinedConse
 
 const list: ConsensusNodeInfo[] = []
 const standbyList: Map<string, ConsensusNodeInfo> = new Map()
+const selectedList: Map<string, ConsensusNodeInfo> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
+const readyList: Map<string, ConsensusNodeInfo> = new Map()
 const activeList: Map<string, ConsensusNodeInfo> = new Map()
 export let activeListByIdSorted: ConsensusNodeInfo[] = []
 export let byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
@@ -126,20 +130,46 @@ export function addNodes(status: NodeStatus, nodes: Node[]): void {
       list.push(node)
       const key = node.publicKey
       switch (status) {
-        case NodeStatus.SYNCING:
+        case NodeStatus.SELECTED:
           if (standbyList.has(key)) standbyList.delete(key)
+          if (syncingList.has(key)) syncingList.delete(key)
+          if (readyList.has(key)) readyList.delete(key)
           if (activeList.has(key)) {
             activeList.delete(key)
-            activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
+            activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey !== key)
+          }
+          if (selectedList.has(key)) break
+          selectedList.set(key, node)
+          break
+        case NodeStatus.SYNCING:
+          if (standbyList.has(key)) standbyList.delete(key)
+          if (selectedList.has(key)) selectedList.delete(key)
+          if (readyList.has(key)) readyList.delete(key)
+          if (activeList.has(key)) {
+            activeList.delete(key)
+            activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey !== key)
           }
           if (syncingList.has(key)) break
-          syncingList.set(node.publicKey, node)
+          syncingList.set(key, node)
+          break
+        case NodeStatus.READY:
+          if (standbyList.has(key)) standbyList.delete(key)
+          if (selectedList.has(key)) selectedList.delete(key)
+          if (syncingList.has(key)) syncingList.delete(key)
+          if (activeList.has(key)) {
+            activeList.delete(key)
+            activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey !== key)
+          }
+          if (readyList.has(key)) break
+          readyList.set(key, node)
           break
         case NodeStatus.ACTIVE:
           if (standbyList.has(key)) standbyList.delete(key)
+          if (selectedList.has(key)) selectedList.delete(key)
           if (syncingList.has(key)) syncingList.delete(key)
+          if (readyList.has(key)) readyList.delete(key)
           if (activeList.has(key)) break
-          activeList.set(node.publicKey, node)
+          activeList.set(key, node)
           Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
           // Logger.mainLogger.debug(
           //   'activeListByIdSorted',
@@ -176,6 +206,9 @@ export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | Jo
       Logger.mainLogger.debug('adding new node during refresh', node.publicKey)
       list.push(node)
       switch (status) {
+        // not sure if I need to support new lists over here
+        // also these cases seem to check a lot less than in addNodes and setStatus
+        // we probably don't need that much checking though
         case NodeStatus.SYNCING:
           syncingList.set(node.publicKey, node)
           break
@@ -235,7 +268,9 @@ export function removeNodes(publicKeys: string[]): void {
       key = list[i].publicKey
       if (keysToDelete.has(key)) {
         list.splice(i, 1)
-        if (syncingList.has(key)) syncingList.delete(key)
+        if (selectedList.has(key)) selectedList.delete(key)
+        else if (syncingList.has(key)) syncingList.delete(key)
+        else if (readyList.has(key)) readyList.delete(key)
         else if (activeList.has(key)) activeList.delete(key)
         else if (standbyList.has(key)) standbyList.delete(key)
       }
@@ -270,18 +305,44 @@ export function setStatus(status: NodeStatus, publicKeys: string[]): void {
       continue
     }
     switch (status) {
-      case NodeStatus.SYNCING:
+      case NodeStatus.SELECTED:
         if (standbyList.has(key)) standbyList.delete(key)
+        if (syncingList.has(key)) syncingList.delete(key)
+        if (readyList.has(key)) readyList.delete(key)
         if (activeList.has(key)) {
           activeList.delete(key)
-          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
+          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey !== key)
+        }
+        if (selectedList.has(key)) break
+        selectedList.set(key, node)
+        break
+      case NodeStatus.SYNCING:
+        if (standbyList.has(key)) standbyList.delete(key)
+        if (selectedList.has(key)) selectedList.delete(key)
+        if (readyList.has(key)) readyList.delete(key)
+        if (activeList.has(key)) {
+          activeList.delete(key)
+          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey !== key)
         }
         if (syncingList.has(key)) break
         syncingList.set(key, node)
         break
+      case NodeStatus.READY:
+        if (standbyList.has(key)) standbyList.delete(key)
+        if (selectedList.has(key)) selectedList.delete(key)
+        if (syncingList.has(key)) syncingList.delete(key)
+        if (activeList.has(key)) {
+          activeList.delete(key)
+          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey !== key)
+        }
+        if (readyList.has(key)) break
+        readyList.set(key, node)
+        break
       case NodeStatus.ACTIVE:
         if (standbyList.has(key)) standbyList.delete(key)
+        if (selectedList.has(key)) selectedList.delete(key)
         if (syncingList.has(key)) syncingList.delete(key)
+        if (readyList.has(key)) readyList.delete(key)
         if (activeList.has(key)) break
         activeList.set(key, node)
         Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
@@ -295,7 +356,9 @@ export function setStatus(status: NodeStatus, publicKeys: string[]): void {
           activeList.delete(key)
           activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
         }
+        if (selectedList.has(key)) selectedList.delete(key)
         if (syncingList.has(key)) syncingList.delete(key)
+        if (readyList.has(key)) readyList.delete(key)
         if (standbyList.has(key)) break
         standbyList.set(key, node)
     }

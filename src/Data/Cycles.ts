@@ -236,6 +236,8 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
     refreshedArchivers,
     standbyAdd,
     standbyRemove,
+    startedSyncing,
+    finishedSyncing,
     lostAfterSelection,
   } = cycle
 
@@ -253,7 +255,19 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
     id: jc.id,
   }))
 
-  NodeList.addNodes(NodeList.NodeStatus.SYNCING, consensorInfos)
+  const syncingPublicKeys = startedSyncing.map((id) => {
+    return NodeList.getNodeInfoById(id).publicKey
+  })
+
+  const readyPublicKeys = finishedSyncing.map((id) => {
+    return NodeList.getNodeInfoById(id).publicKey
+  })
+
+  NodeList.addNodes(NodeList.NodeStatus.SELECTED, consensorInfos)
+
+  NodeList.setStatus(NodeList.NodeStatus.SYNCING, syncingPublicKeys)
+
+  NodeList.setStatus(NodeList.NodeStatus.READY, readyPublicKeys)
 
   NodeList.setStatus(NodeList.NodeStatus.ACTIVE, activatedPublicKeys)
 
