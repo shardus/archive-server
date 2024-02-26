@@ -206,9 +206,8 @@ export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | Jo
       Logger.mainLogger.debug('adding new node during refresh', node.publicKey)
       list.push(node)
       switch (status) {
-        // not sure if I need to support new lists over here
+        // refreshed is deprecated, so don't think I need to support new lists over here
         // also these cases seem to check a lot less than in addNodes and setStatus
-        // we probably don't need that much checking though
         case NodeStatus.SYNCING:
           syncingList.set(node.publicKey, node)
           break
