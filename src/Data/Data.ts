@@ -554,27 +554,28 @@ interface configConsensusResponse {
 async function getConsensusRadius(): Promise<number> {
   // If there is no node, return existing currentConsensusRadius
   if (NodeList.getList().length === 0) return currentConsensusRadius
-  //taking random 3 active nodes 
-  const activeNodes = NodeList.getActiveNodeCount() > 0 ? NodeList.getRandomActiveNodes(3) : NodeList.getList().slice(0, 3);
-  Logger.mainLogger.debug(`Checking network configs from ${activeNodes.length} random nodes`);
+  //taking random 3 active nodes
+  const activeNodes =
+    NodeList.getActiveNodeCount() > 0 ? NodeList.getRandomActiveNodes(3) : NodeList.getList().slice(0, 3)
+  Logger.mainLogger.debug(`Checking network configs from ${activeNodes.length} random nodes`)
 
-  const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2; // 2s timeout
-  const consensusRadiusCounts = new Map();
+  const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
+  const consensusRadiusCounts = new Map()
 
   for (const node of activeNodes) {
     try {
-      Logger.mainLogger.debug(`Fetching config from node ${node.ip}:${node.port}`);
+      Logger.mainLogger.debug(`Fetching config from node ${node.ip}:${node.port}`)
       const response = (await P2P.getJson(
         `http://${node.ip}:${node.port}/netconfig`,
         REQUEST_NETCONFIG_TIMEOUT_SECOND
-      )) as configConsensusResponse;
+      )) as configConsensusResponse
 
       if (response && response.config) {
-        nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup;
-        nodesPerEdge = response.config.sharding.nodesPerEdge;
+        nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
+        nodesPerEdge = response.config.sharding.nodesPerEdge
         // Upgrading consensus size to an odd number
-        if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++;
-        const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2);
+        if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
+        const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
         Logger.mainLogger.debug(
           'consensusRadius',
           consensusRadius,
@@ -584,29 +585,29 @@ async function getConsensusRadius(): Promise<number> {
           nodesPerEdge
         )
         // Counting the frequency of each consensusRadius value
-        consensusRadiusCounts.set(consensusRadius, (consensusRadiusCounts.get(consensusRadius) || 0) + 1);
+        consensusRadiusCounts.set(consensusRadius, (consensusRadiusCounts.get(consensusRadius) || 0) + 1)
       }
     } catch (error) {
-      Logger.mainLogger.error(`Error fetching config from node ${node.ip}:${node.port}: ${error}`);
+      Logger.mainLogger.error(`Error fetching config from node ${node.ip}:${node.port}: ${error}`)
     }
   }
 
   if (consensusRadiusCounts.size > 0) {
     // Find the consensusRadius with the highest frequency
-    let majorityConsensusRadius = currentConsensusRadius;
-    let maxCount = 0;
+    let majorityConsensusRadius = currentConsensusRadius
+    let maxCount = 0
     consensusRadiusCounts.forEach((count, consensusRadius) => {
       if (count > maxCount) {
-        majorityConsensusRadius = consensusRadius;
-        maxCount = count;
+        majorityConsensusRadius = consensusRadius
+        maxCount = count
       }
-    });
+    })
 
-    if (config.VERBOSE) console.log('Majority consensusRadius', majorityConsensusRadius);
-    return majorityConsensusRadius;
+    if (config.VERBOSE) console.log('Majority consensusRadius', majorityConsensusRadius)
+    return majorityConsensusRadius
   }
 
-  return currentConsensusRadius;
+  return currentConsensusRadius
 }
 
 export async function createDataTransferConnection(
