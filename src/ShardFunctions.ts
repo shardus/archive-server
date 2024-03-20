@@ -560,8 +560,8 @@ class ShardFunctions {
     }
 
     const nodeIsActive = nodeShardData.ourNodeIndex !== -1
-    const exclude = [nodeShardData.node.id]
-    const excludeNodeArray = [nodeShardData.node]
+    // const exclude = [nodeShardData.node.id]
+    // const excludeNodeArray = [nodeShardData.node]
 
     // let temp = ShardFunctions.getNodesThatCoverPartitionRaw(shardGlobals, nodeShardDataMap, nodeShardData.homePartition, exclude, activeNodes)
     // //temp validation that the functions above are equal
@@ -586,11 +586,14 @@ class ShardFunctions {
           nodeShardDataMap,
           activeNodes
         )
-        nodeShardData.consensusNodeForOurNode = combinedNodes.consensusNodeForOurNode
-        nodeShardData.consensusNodeForOurNodeFull = combinedNodes.consensusNodeForOurNodeFull
-        nodeShardData.nodeThatStoreOurParition = combinedNodes.nodeThatStoreOurPartition
-        nodeShardData.nodeThatStoreOurParitionFull = combinedNodes.nodeThatStoreOurPartitionFull
-        nodeShardData.edgeNodes = combinedNodes.edgeNodes
+        // Inbuilt, Direct updates to avoid creating new objects or arrays unless necessary
+        Object.assign(nodeShardData, {
+          consensusNodeForOurNode: combinedNodes.consensusNodeForOurNode,
+          consensusNodeForOurNodeFull: combinedNodes.consensusNodeForOurNodeFull,
+          nodeThatStoreOurParition: combinedNodes.nodeThatStoreOurPartition,
+          nodeThatStoreOurParitionFull: combinedNodes.nodeThatStoreOurPartitionFull,
+          edgeNodes: combinedNodes.edgeNodes,
+        })
       } else {
         nodeShardData.nodeThatStoreOurParition = ShardFunctions.getNodesThatCoverHomePartition(
           shardGlobals,
@@ -601,7 +604,7 @@ class ShardFunctions {
         nodeShardData.consensusNodeForOurNode = ShardFunctions.getNeigborNodesInRange(
           nodeShardData.ourNodeIndex,
           shardGlobals.consensusRadius,
-          exclude,
+          [nodeShardData.node.id], //exclude
           activeNodes
         )
         nodeShardData.consensusNodeForOurNodeFull = ShardFunctions.getNeigborNodesInRange(
@@ -635,29 +638,25 @@ class ShardFunctions {
       }
 
       //update covered by list
-      if (nodeShardData.consensusStartPartition <= nodeShardData.consensusEndPartition) {
-        for (let i = nodeShardData.consensusStartPartition; i <= nodeShardData.consensusEndPartition; i++) {
+      const { consensusStartPartition, consensusEndPartition, node } = nodeShardData
+      const numPartitions = shardGlobals.numPartitions
+      const nodeId = node.id // Precomputed to avoid repetitive access
+      const updateRange = (start, end) => {
+        for (let i = start; i <= end; i++) {
           const shardPartitionData = partitionShardDataMap.get(i)
-          if (shardPartitionData == null) {
-            throw new Error('computeExtendedNodePartitionData: shardPartitionData==null 1')
+          if (!shardPartitionData) {
+            throw new Error(`computeExtendedNodePartitionData: shardPartitionData==null at partition ${i}`)
           }
-          shardPartitionData.coveredBy[nodeShardData.node.id] = nodeShardData.node // { idx: nodeShardData.ourNodeIndex }
+          shardPartitionData.coveredBy[nodeId] = node // Direct assignment
         }
+      }
+
+      // Optimizing the loop by reducing the condition checks
+      if (consensusStartPartition <= consensusEndPartition) {
+        updateRange(consensusStartPartition, consensusEndPartition)
       } else {
-        for (let i = 0; i <= nodeShardData.consensusEndPartition; i++) {
-          const shardPartitionData = partitionShardDataMap.get(i)
-          if (shardPartitionData == null) {
-            throw new Error('computeExtendedNodePartitionData: shardPartitionData==null 2')
-          }
-          shardPartitionData.coveredBy[nodeShardData.node.id] = nodeShardData.node // { idx: nodeShardData.ourNodeIndex }
-        }
-        for (let i = nodeShardData.consensusStartPartition; i < shardGlobals.numPartitions; i++) {
-          const shardPartitionData = partitionShardDataMap.get(i)
-          if (shardPartitionData == null) {
-            throw new Error('computeExtendedNodePartitionData: shardPartitionData==null 3')
-          }
-          shardPartitionData.coveredBy[nodeShardData.node.id] = nodeShardData.node // { idx: nodeShardData.ourNodeIndex }
-        }
+        updateRange(0, consensusEndPartition)
+        updateRange(consensusStartPartition, numPartitions - 1)
       }
 
       if (!useCombinedCalculation) {
@@ -665,7 +664,7 @@ class ShardFunctions {
         nodeShardData.c2NodeForOurNode = ShardFunctions.getNeigborNodesInRange(
           nodeShardData.ourNodeIndex,
           2 * shardGlobals.consensusRadius,
-          exclude,
+          [nodeShardData.node.id], //exclude
           activeNodes
         )
         const [results, extras] = ShardFunctions.mergeNodeLists(
@@ -678,7 +677,7 @@ class ShardFunctions {
           nodeShardData.nodeThatStoreOurParitionFull,
           nodeShardData.consensusNodeForOurNode
         )
-        nodeShardData.edgeNodes = ShardFunctions.subtractNodeLists(nodeShardData.edgeNodes, excludeNodeArray) // remove ourself!
+        nodeShardData.edgeNodes = ShardFunctions.subtractNodeLists(nodeShardData.edgeNodes, [nodeShardData.node]) // remove ourself!
       }
 
       if (checkNewCalculation) {
@@ -776,7 +775,7 @@ class ShardFunctions {
       nodeShardData.nodeThatStoreOurParitionFull = nodeShardData.nodeThatStoreOurParition.slice(0)
       nodeShardData.outOfDefaultRangeNodes = []
       nodeShardData.edgeNodes = nodeShardData.nodeThatStoreOurParitionFull.slice(0) // just dupe the stored list.
-      nodeShardData.edgeNodes = ShardFunctions.subtractNodeLists(nodeShardData.edgeNodes, excludeNodeArray) // remove ourself!
+      nodeShardData.edgeNodes = ShardFunctions.subtractNodeLists(nodeShardData.edgeNodes, [nodeShardData.node]) // remove ourself!
 
       nodeShardData.edgeNodes.sort(ShardFunctions.nodeSortAsc)
       nodeShardData.consensusNodeForOurNodeFull.sort(ShardFunctions.nodeSortAsc)
@@ -784,32 +783,30 @@ class ShardFunctions {
     }
 
     // storedBy
-    if (nodeShardData.storedPartitions.rangeIsSplit === false) {
-      for (
-        let i = nodeShardData.storedPartitions.partitionStart;
-        i <= nodeShardData.storedPartitions.partitionEnd;
-        i++
-      ) {
+    // Helper function to update the map
+    const updateMap = (start: number, end: number) => {
+      for (let i = start; i <= end; i++) {
         const shardPartitionData = partitionShardDataMap.get(i)
         if (shardPartitionData == null) {
-          throw new Error('computeExtendedNodePartitionData: shardPartitionData==null 4')
+          throw new Error(`computeExtendedNodePartitionData: shardPartitionData==null at partition ${i}`)
         }
-        shardPartitionData.storedBy[nodeShardData.node.id] = nodeShardData.node // { idx: nodeShardData.ourNodeIndex }
+        shardPartitionData.storedBy[nodeShardData.node.id] = nodeShardData.node
       }
+    }
+
+    if (!nodeShardData.storedPartitions.rangeIsSplit) {
+      // Direct range update for non-split scenario
+      updateMap(nodeShardData.storedPartitions.partitionStart, nodeShardData.storedPartitions.partitionEnd)
     } else {
-      for (let i = 0; i <= nodeShardData.storedPartitions.partitionEnd; i++) {
-        const shardPartitionData = partitionShardDataMap.get(i)
-        if (shardPartitionData == null) {
-          throw new Error('computeExtendedNodePartitionData: shardPartitionData==null 5')
-        }
-        shardPartitionData.storedBy[nodeShardData.node.id] = nodeShardData.node // { idx: nodeShardData.ourNodeIndex }
-      }
-      for (let i = nodeShardData.storedPartitions.partitionStart; i < shardGlobals.numPartitions; i++) {
-        const shardPartitionData = partitionShardDataMap.get(i)
-        if (shardPartitionData == null) {
-          throw new Error('computeExtendedNodePartitionData: shardPartitionData==null 6')
-        }
-        shardPartitionData.storedBy[nodeShardData.node.id] = nodeShardData.node // { idx: nodeShardData.ourNodeIndex }
+      // Handle split scenario efficiently
+      if (nodeShardData.storedPartitions.partitionStart > nodeShardData.storedPartitions.partitionEnd) {
+        // If the start is greater than the end, it means we wrap around the end of the array.
+        updateMap(0, nodeShardData.storedPartitions.partitionEnd)
+        updateMap(nodeShardData.storedPartitions.partitionStart, shardGlobals.numPartitions - 1)
+      } else {
+        // If the partition range is split but does not wrap, handle as a special case (unlikely but possible)
+        updateMap(0, nodeShardData.storedPartitions.partitionEnd)
+        updateMap(nodeShardData.storedPartitions.partitionStart, shardGlobals.numPartitions - 1)
       }
     }
   }
@@ -1359,21 +1356,30 @@ class ShardFunctions {
    * @param {P2P.NodeListTypes.Node[]} listB
    * @returns {P2P.NodeListTypes.Node[]} results list
    */
+  // static subtractNodeLists(
+  //   listA: P2P.NodeListTypes.Node[],
+  //   listB: P2P.NodeListTypes.Node[]
+  // ): P2P.NodeListTypes.Node[] {
+  //   const results = [] as P2P.NodeListTypes.Node[]
+  //   const nodeSet = new Set()
+  //   for (const node of listB) {
+  //     nodeSet.add(node)
+  //   }
+  //   for (const node of listA) {
+  //     if (!nodeSet.has(node)) {
+  //       results.push(node)
+  //     }
+  //   }
+  //   return results
+  // }
+
   static subtractNodeLists(
     listA: P2P.NodeListTypes.Node[],
     listB: P2P.NodeListTypes.Node[]
   ): P2P.NodeListTypes.Node[] {
-    const results = [] as P2P.NodeListTypes.Node[]
-    const nodeSet = new Set()
-    for (const node of listB) {
-      nodeSet.add(node)
-    }
-    for (const node of listA) {
-      if (!nodeSet.has(node)) {
-        results.push(node)
-      }
-    }
-    return results
+    const resultSet = new Set(listA)
+    listB.forEach((node) => resultSet.delete(node))
+    return Array.from(resultSet)
   }
 
   static partitionToAddressRange2(
