@@ -195,3 +195,30 @@ export function cryptoStringify(val: unknown, isArrayProp = false): string {
   }
   return ''
 }
+
+function shouldReviveAsBigInt(value: string, length?: number): boolean {
+  if (value && typeof value === 'string' && value.indexOf('0x') >= 0) return false // do not convert strings with 0x
+  // prefix
+  if (typeof value !== 'string' || !value.match(/^[0-9A-Fa-f]*$/)) return false
+
+  if (typeof length !== 'undefined' && length > 0 && value.length !== 2 + 2 * length) return false
+
+  return true
+}
+
+function bigIntReviver(key: string, value: any): unknown {
+  if (key === 'sig') return value
+  if (value && shouldReviveAsBigInt(value) && value.length !== 42 && value.length !== 64) {
+    return BigInt('0x' + value)
+  } else {
+    return value
+  }
+}
+
+export function safeParser(value: string): any {
+  try {
+    return JSON.parse(value, bigIntReviver)
+  } catch (error) {
+    return { error: 'cannot parse' }
+  }
+}

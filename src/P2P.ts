@@ -7,6 +7,7 @@ import fetch from 'node-fetch'
 import { P2P as P2PTypes } from '@shardus/types'
 import { RequestInit, Response } from 'node-fetch'
 import { SignedObject } from '@shardus/crypto-utils'
+import { safeParser } from './utils/stringify'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require('../package.json')
 
@@ -87,7 +88,8 @@ export async function postJson(
       timeout: timeoutInSecond * 1000,
     })
     if (res.ok) {
-      return await res.json()
+      const text = await res.text()
+      return safeParser(text)
     } else {
       console.warn('postJson failed: got bad response')
       console.warn(res.headers)
@@ -108,7 +110,8 @@ export async function getJson(url: string, timeoutInSecond = 5): Promise<object 
       headers: { 'Content-Type': 'application/json' },
     })
     if (res.ok) {
-      return await res.json()
+      const text = await res.text()
+      return safeParser(text)
     } else {
       console.warn('getJson failed: got bad response')
       console.warn(res.headers)
