@@ -7,7 +7,7 @@ import { config } from './Config'
 import { postJson, getJson } from './P2P'
 import { robustQuery, deepCopy } from './Utils'
 import { isDeepStrictEqual } from 'util'
-import { accountSpecificHash } from './shardeum/calculateAccountHash'
+import { calculateAccountHash } from './shardeum/calculateAccountHash'
 
 let cachedGlobalNetworkAccount: AccountDB.AccountsCopy
 let cachedGlobalNetworkAccountHash: string
@@ -85,7 +85,7 @@ export const updateGlobalNetworkAccount = async (cycleNumber: number): Promise<v
       // networkAccount.data.timestamp += 1000
     }
 
-    networkAccount.hash = accountSpecificHash(networkAccount.data)
+    networkAccount.hash = calculateAccountHash(networkAccount.data)
     networkAccount.timestamp = networkAccount.data.timestamp
     Logger.mainLogger.debug('updateGlobalNetworkAccount', networkAccount)
     await AccountDB.updateAccount(networkAccount)
