@@ -27,7 +27,7 @@ import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Da
 import * as OriginalTxDB from '../dbstore/originalTxsData'
 import ShardFunction from '../ShardFunctions'
 import { ConsensusNodeInfo } from '../NodeList'
-import { accountSpecificHash, verifyAccountHash } from '../shardeum/calculateAccountHash'
+import { calculateAccountHash, verifyAccountHash } from '../shardeum/calculateAccountHash'
 import { verifyAppReceiptData } from '../shardeum/verifyAppReceiptData'
 import { Cycle as DbCycle } from '../dbstore/types'
 import { Utils as StringUtils } from '@shardeum-foundation/lib-types'
@@ -1330,7 +1330,7 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
     const combineAccounts = []
     for (const account of accounts) {
       try {
-        const calculatedAccountHash = accountSpecificHash(account.data)
+        const calculatedAccountHash = calculateAccountHash(account.data)
         if (calculatedAccountHash !== account.hash) {
           Logger.mainLogger.error(
             'Invalid account hash',

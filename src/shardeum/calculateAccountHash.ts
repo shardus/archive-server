@@ -4,60 +4,11 @@ import { verifyPayload } from '../types/ajv/Helpers'
 import { AJVSchemaEnum } from '../types/enum/AJVSchemaEnum'
 import { verifyGlobalTxAccountChange } from './verifyGlobalTxReceipt'
 
-// account types in Shardeum
-export enum AccountType {
-  Account = 0, //  EOA or CA
-  ContractStorage = 1, // Contract storage key value pair
-  ContractCode = 2, // Contract code bytes
-  Receipt = 3, //This holds logs for a TX
-  Debug = 4,
-  NetworkAccount = 5,
-  NodeAccount = 6,
-  NodeRewardReceipt = 7,
-  DevAccount = 8,
-  NodeAccount2 = 9,
-  StakeReceipt = 10,
-  UnstakeReceipt = 11,
-  InternalTxReceipt = 12,
-  SecureAccount = 13,
-}
-
-export const accountSpecificHash = (account: any): string => {
-  let hash: string
-  delete account.hash
-  if (
-    account.accountType === AccountType.NetworkAccount ||
-    account.accountType === AccountType.NodeAccount ||
-    account.accountType === AccountType.NodeAccount2 ||
-    account.accountType === AccountType.NodeRewardReceipt ||
-    account.accountType === AccountType.StakeReceipt ||
-    account.accountType === AccountType.UnstakeReceipt ||
-    account.accountType === AccountType.InternalTxReceipt ||
-    account.accountType === AccountType.DevAccount || 
-    account.accountType === AccountType.SecureAccount 
-  ) {
-    account.hash = crypto.hashObj(account)
-    return account.hash
-  }
-  if (account.accountType === AccountType.Account) {
-    const { account: EVMAccountInfo, operatorAccountInfo, timestamp } = account
-    const accountData = operatorAccountInfo
-      ? { EVMAccountInfo, operatorAccountInfo, timestamp }
-      : { EVMAccountInfo, timestamp }
-    hash = crypto.hashObj(accountData)
-  } else if (account.accountType === AccountType.Debug) {
-    hash = crypto.hashObj(account)
-  } else if (account.accountType === AccountType.ContractStorage) {
-    hash = crypto.hashObj({ key: account.key, value: account.value })
-  } else if (account.accountType === AccountType.ContractCode) {
-    hash = crypto.hashObj({ key: account.codeHash, value: account.codeByte })
-  } else if (account.accountType === AccountType.Receipt) {
-    hash = crypto.hashObj({ key: account.txId, value: account.receipt })
-  }
-
-  // hash = hash + '0'.repeat(64 - hash.length)
-  account.hash = hash
-  return hash
+// Reference: https://github.com/Liberdus/server/blob/84f80564c45b06343df9bed4fe66a1628052a4cc/src/index.ts#L349
+export const calculateAccountHash = (account: any): string => {
+  account.hash = '' // Not sure this is really necessary
+  account.hash = crypto.hashObj(account)
+  return account.hash
 }
 
 export const verifyAccountHash = (
@@ -111,7 +62,7 @@ export const verifyAccountHash = (
         nestedCounterMessages.push(`Account not found in the receipt`)
         return false
       }
-      const calculatedAccountHash = accountSpecificHash(accountData.data)
+      const calculatedAccountHash = calculateAccountHash(accountData.data)
       // eslint-disable-next-line security/detect-object-injection
       const expectedAccountHash = afterStateHashes[index]
       if (calculatedAccountHash !== expectedAccountHash) {

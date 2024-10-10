@@ -1,6 +1,6 @@
 import { P2P } from '@shardeum-foundation/lib-types'
-import { ArchiverReceipt, Receipt } from '../dbstore/receipts'
-import { accountSpecificHash } from './calculateAccountHash'
+import { ArchiverReceipt } from '../dbstore/receipts'
+import { calculateAccountHash } from './calculateAccountHash'
 
 // Refer to https://github.com/shardeum/shardeum/blob/89db23e1d4ffb86b4353b8f37fb360ea3cd93c5b/src/shardeum/shardeumTypes.ts#L242
 export interface SetGlobalTxValue {
@@ -33,7 +33,7 @@ export enum InternalTXType {
 }
 
 export const verifyGlobalTxAccountChange = (
-  receipt: ArchiverReceipt | Receipt,
+  receipt: ArchiverReceipt,
   failedReasons = [],
   nestedCounterMessages = []
 ): boolean => {
@@ -59,7 +59,7 @@ export const verifyGlobalTxAccountChange = (
             return false
           }
           const expectedAccountHash = signedReceipt.tx.addressHash
-          const calculatedAccountHash = accountSpecificHash(account.data)
+          const calculatedAccountHash = calculateAccountHash(account.data)
           if (expectedAccountHash !== calculatedAccountHash) {
             failedReasons.push(
               `Account hash before does not match in globalModification tx - ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
@@ -94,7 +94,7 @@ export const verifyGlobalTxAccountChange = (
         networkAccountBefore.data.timestamp = signedReceipt.tx.when
         const expectedAccountHash = networkAccountAfter.hash
         console.dir(networkAccountBefore, { depth: null })
-        const calculatedAccountHash = accountSpecificHash(networkAccountBefore.data)
+        const calculatedAccountHash = calculateAccountHash(networkAccountBefore.data)
         if (expectedAccountHash !== calculatedAccountHash) {
           failedReasons.push(
             `Account hash does not match in globalModification tx - ${networkAccountAfter.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`

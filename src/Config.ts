@@ -157,14 +157,14 @@ let config: Config = {
   useSerialization: true,
   useSyncV2: true,
   sendActiveMessage: false,
-  globalNetworkAccount:
-    process.env.GLOBAL_ACCOUNT || '1000000000000000000000000000000000000000000000000000000000000001', //this address will change in the future
+  globalNetworkAccount: process.env.GLOBAL_ACCOUNT || '0'.repeat(64), //this address will have to adapt as per the dapp defined
   maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
   limitToArchiversOnly: true,
   verifyReceiptData: true,
   verifyReceiptSignaturesSeparately: true,
   verifyAccountData: true,
-  verifyAppReceiptData: true,
+  verifyAppReceiptData: false, // Setting this to false for Liberdus
+  skipGlobalTxReceiptVerification: true,
   REQUEST_LIMIT: {
     MAX_ACCOUNTS_PER_REQUEST: 1000,
     MAX_RECEIPTS_PER_REQUEST: 100,
