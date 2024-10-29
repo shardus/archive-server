@@ -2,8 +2,12 @@ import { P2P } from "@shardus/types";
 import * as Logger from './Logger'
 import { stringifyReduce } from "./profiler/StringifyReduce";
 import * as crypto from './Crypto'
+import { config } from './Config'
+import ngtJson = require('./ngt/ngt-restore.json')
 
-let txList: P2P.ServiceQueueTypes.NetworkTxEntry[] = []
+let txList: P2P.ServiceQueueTypes.NetworkTxEntry[] = config.restoreNGTsFromSnapshot
+  ? (ngtJson as P2P.ServiceQueueTypes.NetworkTxEntry[])
+  : []
 
 export function addTxs(addTxs: P2P.ServiceQueueTypes.AddNetworkTx[]): boolean {
   try {

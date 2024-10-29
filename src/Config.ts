@@ -102,6 +102,7 @@ export interface Config {
   firstNodePublicKey: string // The public key of the first node to be selected
   disableOffloadReceipt: boolean // To disable offloading of receipts globally
   disableOffloadReceiptForGlobalModification: boolean // To disable offloading of receipts for global modifications receipts
+  restoreNGTsFromSnapshot: boolean // To restore NGTs from snapshot
 }
 
 let config: Config = {
@@ -195,6 +196,7 @@ let config: Config = {
   firstNodePublicKey: '',
   disableOffloadReceipt: false,
   disableOffloadReceiptForGlobalModification: true,
+  restoreNGTsFromSnapshot: true,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
