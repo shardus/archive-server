@@ -196,7 +196,7 @@ let config: Config = {
   firstNodePublicKey: '',
   disableOffloadReceipt: false,
   disableOffloadReceiptForGlobalModification: true,
-  restoreNGTsFromSnapshot: true,
+  restoreNGTsFromSnapshot: false,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

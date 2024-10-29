@@ -3,7 +3,12 @@ import * as Logger from './Logger'
 import { stringifyReduce } from "./profiler/StringifyReduce";
 import * as crypto from './Crypto'
 import { config } from './Config'
-import ngtJson = require('./ngt/ngt-restore.json')
+import { readFileSync } from 'fs'
+import * as path from 'path'
+
+const txListPath = path.join(__dirname, '..', 'tx-list-restore.json');
+const rawData = readFileSync(txListPath, 'utf8');
+const ngtJson = JSON.parse(rawData)
 
 let txList: P2P.ServiceQueueTypes.NetworkTxEntry[] = config.restoreNGTsFromSnapshot
   ? (ngtJson as P2P.ServiceQueueTypes.NetworkTxEntry[])
