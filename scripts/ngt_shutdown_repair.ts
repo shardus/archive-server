@@ -99,7 +99,7 @@ function generateHash(input: string): string {
 }
 
 async function main() {
-  const filePath = path.join(__dirname, '..', 'ngt-restore.json')
+  const filePath = path.join(__dirname, '..', 'tx-list-restore.json')
   const endCycle = Number(process.argv[2])
   const endTime = Number(process.argv[3])
 
