@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import * as path from 'path'
 import { join } from 'path'
 import { overrideDefaultConfig, config } from '../src/Config'
 import * as Crypto from '../src/Crypto'
@@ -56,6 +56,12 @@ const runProgram = async (): Promise<void> => {
   await dbstore.initializeDB(config)
   addSigListeners()
 
+  const txListPath = path.join(__dirname, '..', 'tx-list-restore.json')
+  const rawData = readFileSync(txListPath, 'utf8')
+  const ngtJson = JSON.parse(rawData)
+
+  const txListHash = Crypto.hash(ngtJson)
+
   let latestCycle = await CycleDB.queryLatestCycleRecords(1)
   let latestCycleRecord = latestCycle[0]
   console.log('latestCycleRecord before', latestCycleRecord)
@@ -73,6 +79,9 @@ const runProgram = async (): Promise<void> => {
     removedArchivers: [],
     standbyAdd: [],
     standbyRemove: [],
+    txlisthash: txListHash,
+    txadd: [],
+    txremove: [],
   }
   delete newCycleRecord.marker
   const marker = computeCycleMarker(newCycleRecord)
