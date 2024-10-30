@@ -42,7 +42,7 @@ const runProgram = async (): Promise<void> => {
   Crypto.setCryptoHashKey(hashKey)
   let logsConfig
   try {
-    logsConfig = StringUtils.safeJsonParse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
+    logsConfig = StringUtils.safeJsonParse(readFileSync(path.resolve(__dirname, '../archiver-log.json'), 'utf8'))
   } catch (err) {
     console.log('Failed to parse archiver log file:', err)
   }
@@ -60,7 +60,7 @@ const runProgram = async (): Promise<void> => {
   const rawData = readFileSync(txListPath, 'utf8')
   const ngtJson = JSON.parse(rawData)
 
-  const txListHash = Crypto.hash(ngtJson)
+  const txListHash = Crypto.hashObj(ngtJson)
 
   let latestCycle = await CycleDB.queryLatestCycleRecords(1)
   let latestCycleRecord = latestCycle[0]
