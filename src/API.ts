@@ -35,6 +35,9 @@ import {
   failureReceiptCount,
 } from './primary-process'
 import * as ServiceQueue from './ServiceQueue'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+import ticketRoutes from './routes/tickets'
 const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 
 const TXID_LENGTH = 64
@@ -1268,6 +1271,9 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     // We might want to sign this response
     reply.send(Crypto.sign(response))
   })
+
+  // Register ticket routes
+  server.register(ticketRoutes, { prefix: '/tickets' })
 }
 
 export const validateRequestData = (

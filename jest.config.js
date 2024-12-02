@@ -9,6 +9,15 @@ module.exports = {
       "**/?(*.)+(spec|test).+(ts|tsx|js)"
     ],
     transform: {
-      "^.+\\.(ts|tsx)$": "ts-jest"
+      "^.+\\.(ts|tsx)$": ["ts-jest", {
+        tsconfig: "test/tsconfig.json"
+      }]
     },
-  };
+    moduleDirectories: ["node_modules", "src"],
+    globals: {
+      'ts-jest': {
+        isolatedModules: true
+      }
+    },
+    timers: 'fake'
+}

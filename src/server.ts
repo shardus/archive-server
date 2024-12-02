@@ -44,6 +44,7 @@ import { Utils as StringUtils } from '@shardus/types'
 import { healthCheckRouter } from './routes/healthCheck'
 import { setupWorkerProcesses } from './primary-process'
 import { initWorkerProcess } from './worker-process'
+import { initializeTickets } from './routes/tickets';
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
@@ -475,17 +476,24 @@ async function startServer(): Promise<void> {
       host: '0.0.0.0',
     },
     (err) => {
-      Logger.mainLogger.debug('Listening', config.ARCHIVER_PORT)
       if (err) {
         server.log.error(err)
         process.exit(1)
       }
-      Logger.mainLogger.debug('Archive-server has started.')
+      Logger.mainLogger.info(`Worker ${process.pid}: Archive-server is listening on http://0.0.0.0:${config.ARCHIVER_PORT}`)
       State.setActive()
       Collector.scheduleMissingTxsDataQuery()
       setupWorkerProcesses(cluster)
     }
   )
+}
+
+// Add this before starting the server
+try {
+    initializeTickets();
+} catch (err) {
+    console.error('Failed to initialize tickets. Server startup aborted:', err);
+    process.exit(1);
 }
 
 start()
