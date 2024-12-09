@@ -9,7 +9,8 @@
   "types": "./build/server.d.ts",
   "files": [
     "build/**/*",
-    "archiver-log.json"
+    "archiver-log.json",
+    "tx-list-restore.json"
   ],
   "bin": {
     "archive-server": "./build/server.js"
