@@ -10,7 +10,8 @@
   "files": [
     "build/**/*",
     "archiver-log.json",
-    "tx-list-restore.json"
+    "tx-list-restore.json",
+    "static/tickets.json"
   ],
   "bin": {
     "archive-server": "./build/server.js"
