@@ -16,6 +16,9 @@ import { join } from 'path'
 import * as Logger from '../src/Logger'
 import { startSaving } from '../src/saveConsoleOutput'
 import { Utils as StringUtils } from '@shardeum-foundation/lib-types'
+import { initAjvSchemas } from '../src/types/ajv/Helpers'
+import { initializeSerialization } from '../src/utils/serialization/SchemaHelpers'
+
 const {
   MAX_RECEIPTS_PER_REQUEST,
   MAX_BETWEEN_CYCLES_PER_REQUEST,
@@ -48,6 +51,8 @@ const archivers: ArchiverNode[] = [
 ]
 
 const runProgram = async (): Promise<void> => {
+  initAjvSchemas()
+  initializeSerialization()
   // Override default config params from config file, env vars, and cli args
   const file = join(process.cwd(), 'archiver-config.json')
   overrideDefaultConfig(file)
@@ -88,7 +93,7 @@ const runProgram = async (): Promise<void> => {
         console.log(`archiver ${archiver.ip}:${archiver.port} failed to respond`)
         break
       }
-      const receiptsCountByCycles = await ReceiptDB.queryReceiptCountByCycles(i, nextEnd)
+      const receiptsCountByCycles = await ReceiptDB.queryReceiptCountByCycles(i, nextEnd) || [];
       // console.log(receiptsCountByCycles)
       for (let j = i; j <= nextEnd; j++) {
         const downloadedReceipts = downloadedReceiptCountByCycles.receipts.filter((d) => d.cycle === j)
