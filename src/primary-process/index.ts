@@ -6,6 +6,8 @@ import { config } from '../Config'
 import { EventEmitter } from 'events'
 import { StateManager, Utils as StringUtils } from '@shardeum-foundation/lib-types'
 import * as Utils from '../Utils'
+import { verifyPayload } from '../types/ajv/Helpers'
+import { AJVSchemaEnum } from '../types/enum/AJVSchemaEnum'
 
 const MAX_WORKERS = cpus().length - 1 // Leaving 1 core for the master process
 
@@ -38,6 +40,11 @@ const extraWorkers = new Map<number, Worker>()
 let currentWorker = 0
 
 const emitter = new EventEmitter()
+
+/**
+ * @deprecated This method is currently used in server.ts but will be removed as part of cleanup.
+ * Do not use this method in new code.
+ */
 
 export const setupWorkerProcesses = (cluster: Cluster): void => {
   console.log(`Master ${process.pid} is running`)
@@ -222,104 +229,4 @@ const forwardReceiptVerificationResult = (
       })
     })
   })
-}
-
-export const offloadReceipt = async (
-  txId: string,
-  timestamp: number,
-  requiredSignatures: number,
-  receipt: ArchiverReceipt
-): Promise<ReceiptVerificationResult> => {
-  receivedReceiptCount++ // Increment the counter for each receipt received
-  receiptLoadTraker++ // Increment the receipt load tracker
-  let verificationResult: ReceiptVerificationResult
-
-  // Check if offloading is disabled globally or for global modifications
-  if (
-    config.disableOffloadReceipt ||
-    (config.disableOffloadReceiptForGlobalModification && receipt.globalModification)
-  ) {
-    mainProcessReceiptTracker++
-    if (config.workerProcessesDebugLog) console.log('Verifying on the main program', txId, timestamp)
-    verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
-    mainProcessReceiptTracker--
-    verifiedReceiptCount++
-    if (verificationResult.success) {
-      successReceiptCount++
-    } else {
-      failureReceiptCount++
-    }
-    return verificationResult
-  }
-
-  // Existing logic for offloading
-  if (workers.length === 0 && mainProcessReceiptTracker > config.receiptLoadTrakerLimit) {
-    // If there are extra workers available, put them to the workers list
-    if (extraWorkers.size > 0) {
-      console.log(
-        `offloadReceipt - Extra workers available: ${extraWorkers.size}, moving them to workers list`
-      )
-      // Move the extra workers to the workers list
-      for (const [pid, worker] of extraWorkers) {
-        workers.push(worker)
-        extraWorkers.delete(pid)
-      }
-    }
-    // // If there are still no workers available, add randon wait time (0-1 second) and proceed
-    // if (workers.length === 0 && mainProcessReceiptTracker > config.receiptLoadTrakerLimit) {
-    //   await Utils.sleep(Math.floor(Math.random() * 1000))
-    // }
-  }
-  if (workers.length === 0) {
-    mainProcessReceiptTracker++
-    if (config.workerProcessesDebugLog) console.log('Verifying on the main program 1', txId, timestamp)
-    verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
-    mainProcessReceiptTracker--
-  } else {
-    mainProcessReceiptTracker = 0
-    // Forward the request to a worker in a round-robin fashion
-    let worker = workers[currentWorker]
-    currentWorker = (currentWorker + 1) % workers.length
-    if (!worker) {
-      console.error('No worker available to process the receipt 1')
-      worker = workers[currentWorker]
-      currentWorker = (currentWorker + 1) % workers.length
-      if (worker) {
-        console.log('Verifying on the worker process 2', txId, timestamp, worker.process.pid)
-        const cloneReceipt = Utils.deepCopy(receipt)
-        delete cloneReceipt.tx.originalTxData
-        delete cloneReceipt.executionShardKey
-        const stringifiedReceipt = StringUtils.safeStringify(cloneReceipt)
-        worker.send({
-          type: 'receipt-verification',
-          data: { stringifiedReceipt, requiredSignatures },
-        })
-        verificationResult = await forwardReceiptVerificationResult(txId, timestamp, worker)
-      } else {
-        console.error('No worker available to process the receipt 2')
-        // Verifying the receipt in the main thread
-        console.log('Verifying on the main program 2', txId, timestamp)
-        verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
-      }
-    } else {
-      if (config.workerProcessesDebugLog)
-        console.log('Verifying on the worker process 1', txId, timestamp, worker.process.pid)
-      const cloneReceipt = Utils.deepCopy(receipt)
-      delete cloneReceipt.tx.originalTxData
-      delete cloneReceipt.executionShardKey
-      const stringifiedReceipt = StringUtils.safeStringify(cloneReceipt)
-      worker.send({
-        type: 'receipt-verification',
-        data: { stringifiedReceipt, requiredSignatures },
-      })
-      verificationResult = await forwardReceiptVerificationResult(txId, timestamp, worker)
-    }
-  }
-  verifiedReceiptCount++
-  if (verificationResult.success) {
-    successReceiptCount++
-  } else {
-    failureReceiptCount++
-  }
-  return verificationResult
 }
