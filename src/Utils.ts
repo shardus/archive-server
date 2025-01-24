@@ -62,8 +62,8 @@ export interface SequentialQueryResult<Node> {
 export function shuffleArray<T>(array: T[]): void {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    // eslint-disable-next-line security/detect-object-injection
-    ;[array[i], array[j]] = [array[j], array[i]]
+      // eslint-disable-next-line security/detect-object-injection
+      ;[array[i], array[j]] = [array[j], array[i]]
   }
 }
 
@@ -275,8 +275,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     //        This change would require also changing all the places it is called.
     if (!disableFailLog)
       Logger.mainLogger.error(
-        `Could not get ${redundancy} ${
-          redundancy > 1 ? 'redundant responses' : 'response'
+        `Could not get ${redundancy} ${redundancy > 1 ? 'redundant responses' : 'response'
         } from ${nodeCount} ${nodeCount !== 1 ? 'nodes' : 'node'}. Encountered ${errors} query errors.`
       )
     console.trace()

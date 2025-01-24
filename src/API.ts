@@ -35,11 +35,10 @@ import {
   failureReceiptCount,
 } from './primary-process'
 import * as ServiceQueue from './ServiceQueue'
-import { readFileSync } from 'fs'
-import { join } from 'path'
 import ticketRoutes from './routes/tickets'
-const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
+import { allowedArchiversManager } from './shardeum/allowedArchiversManager'
 
+const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 const TXID_LENGTH = 64
 const {
   MAX_CYCLES_PER_REQUEST,
@@ -279,6 +278,23 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       activeArchivers,
     })
     reply.send(res)
+  })
+
+  server.get('/allowed-archivers', async (_request, reply) => {
+    try {
+      const config = allowedArchiversManager.getCurrentConfig()
+      if (!config) {
+        return reply.status(500).send({
+          error: 'Internal server error'
+        })
+      }
+      return reply.send(config)
+    } catch (error) {
+      Logger.mainLogger.error('Error serving allowed-archivers:', error)
+      return reply.status(500).send({
+        error: 'Internal server error'
+      })
+    }
   })
 
   server.get('/nodeInfo', (request, reply) => {
@@ -1296,18 +1312,31 @@ export const validateRequestData = (
       Logger.mainLogger.error('Data sender publicKey and sign owner key does not match')
       return { success: false, error: 'Data sender publicKey and sign owner key does not match' }
     }
-    if (!skipArchiverCheck && config.limitToArchiversOnly) {
-      // Check if the sender is in the archiver list or is the devPublicKey
-      const approvedSender =
-        State.activeArchivers.some((archiver) => archiver.publicKey === data.sender) ||
-        config.DevPublicKey === data.sender
-      if (!approvedSender) {
-        return { success: false, error: 'Data request sender is not an archiver' }
-      }
-    }
     if (!Crypto.verify(data)) {
       Logger.mainLogger.error('Invalid signature', data)
       return { success: false, error: 'Invalid signature' }
+    }
+    if (!skipArchiverCheck && config.limitToArchiversOnly) {
+      // Check if the sender is in the allowed archivers list
+      const isAllowedArchiver = allowedArchiversManager.isArchiverAllowed(data.sender)
+
+      // Check if the sender is in the active archiver list or is the devPublicKey
+      const isActiveArchiver = State.activeArchivers.some(
+        (archiver) => archiver.publicKey === data.sender
+      )
+
+      const approvedSender =
+        (isAllowedArchiver && isActiveArchiver) ||
+        config.DevPublicKey === data.sender
+
+      if (!approvedSender) {
+        return {
+          success: false,
+          error: isAllowedArchiver
+            ? 'Archiver is not active'
+            : 'Data request sender is not an authorized archiver'
+        }
+      }
     }
     return { success: true }
   } catch (e) {
