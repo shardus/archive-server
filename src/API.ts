@@ -883,7 +883,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       transactions = await TransactionDB.queryTransactionByTxId(txId)
       res = { transactions }
     } else if (appReceiptId) {
-      transactions = await TransactionDB.queryTransactionByAccountId(appReceiptId)
+      transactions = await TransactionDB.queryTransactionByAppReceiptId(appReceiptId)
       res = { transactions }
     } else {
       res = {

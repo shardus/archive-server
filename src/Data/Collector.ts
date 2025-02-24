@@ -1164,10 +1164,10 @@ export const storeReceiptData = async (
     // }
     const txObj: Transaction.Transaction = {
       txId: tx.txId,
-      appReceiptId: appReceiptData ? appReceiptData.accountId : tx.txId, // Set txId if appReceiptData lacks appReceiptId
+      appReceiptId: appReceiptData.appReceiptId, // Set txId if appReceiptData lacks appReceiptId
       timestamp: tx.timestamp,
       cycleNumber: cycle,
-      data: appReceiptData ? appReceiptData.data : {},
+      data: appReceiptData ? appReceiptData : {},
       originalTxData: tx.originalTxData,
     }
 

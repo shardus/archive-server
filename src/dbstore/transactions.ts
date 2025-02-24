@@ -107,17 +107,17 @@ export async function queryTransactionByTxId(txId: string): Promise<Transaction>
   }
 }
 
-export async function queryTransactionByAccountId(accountId: string): Promise<Transaction> {
+export async function queryTransactionByAppReceiptId(appReceiptId: string): Promise<Transaction> {
   try {
-    const sql = `SELECT * FROM transactions WHERE accountId=?`
-    const transaction = (await db.get(transactionDatabase, sql, [accountId])) as DbTransaction // TODO: confirm structure of object from db
+    const sql = `SELECT * FROM transactions WHERE appReceiptId=?`
+    const transaction = (await db.get(transactionDatabase, sql, [appReceiptId])) as DbTransaction // TODO: confirm structure of object from db
     if (transaction) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
       if (transaction.originalTxData)
         transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
     }
     if (config.VERBOSE) {
-      Logger.mainLogger.debug('Transaction accountId', transaction)
+      Logger.mainLogger.debug('Transaction appReceiptId', transaction)
     }
     return transaction
   } catch (e) {
