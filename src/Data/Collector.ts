@@ -1164,7 +1164,7 @@ export const storeReceiptData = async (
     // }
     const txObj: Transaction.Transaction = {
       txId: tx.txId,
-      appReceiptId: appReceiptData.appReceiptId, // Set txId if appReceiptData lacks appReceiptId
+      appReceiptId: appReceiptData.appReceiptId, // Expect appReceiptId to be provided by the dapp
       timestamp: tx.timestamp,
       cycleNumber: cycle,
       data: appReceiptData ? appReceiptData : {},
