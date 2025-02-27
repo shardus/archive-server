@@ -1164,7 +1164,7 @@ export const storeReceiptData = async (
     // }
     const txObj: Transaction.Transaction = {
       txId: tx.txId,
-      appReceiptId: appReceiptData.appReceiptId, // Expect appReceiptId to be provided by the dapp
+      appReceiptId: appReceiptData?.appReceiptId, // Expect appReceiptId to be provided by the dapp
       timestamp: tx.timestamp,
       cycleNumber: cycle,
       data: appReceiptData ? appReceiptData : {},
@@ -1353,7 +1353,7 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
     const combineProcessedTxs = []
     for (const receipt of receipts) {
       const txObj: Transaction.Transaction = {
-        txId: receipt.data.txId || receipt.txId,
+        txId: receipt.data?.txId || receipt.txId,
         appReceiptId: receipt.appReceiptId,
         timestamp: receipt.timestamp,
         cycleNumber: receipt.cycleNumber,
@@ -1361,7 +1361,7 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
         originalTxData: {},
       }
       const processedTx: ProcessedTransaction.ProcessedTransaction = {
-        txId: receipt.data.txId || receipt.txId,
+        txId: receipt.data?.txId || receipt.txId,
         cycle: receipt.cycleNumber,
         txTimestamp: receipt.timestamp,
         applyTimestamp: receipt.timestamp,
