@@ -1,5 +1,5 @@
 {
-  "name": "@shardeum-foundation/archiver",
+  "name": "@shardus/archiver",
   "version": "3.7.8-prerelease.0",
   "engines": {
     "node": "20.19.3"
